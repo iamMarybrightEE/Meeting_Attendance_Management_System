@@ -1,6 +1,5 @@
 import Image from "next/image";
 import { redirect } from 'next/navigation'
-import "./colors.css";
 import LoginForm from "../modules/userManagement/forms/loginForm";
 
 

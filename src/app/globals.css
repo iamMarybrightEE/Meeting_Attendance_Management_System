@@ -3,7 +3,19 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
-  --primary:#004497;
+  --primary: #004497;
+  --sidebar-width: 260px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
 }
 
 @theme inline {

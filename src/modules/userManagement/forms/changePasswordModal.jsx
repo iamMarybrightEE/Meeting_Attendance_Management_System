@@ -1,0 +1,151 @@
+"use client";
+  
+import { useState } from "react";
+import { Formik, Form } from "formik";
+import * as Yup from "yup";
+import {
+  Dialog,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Button,
+  Box,
+  Typography,
+  InputAdornment,
+  IconButton,
+  Alert,
+  CircularProgress,
+  Divider,
+} from "@mui/material";
+import { Close, Lock, Visibility, VisibilityOff, Key } from "@mui/icons-material";
+
+const changePasswordSchema = Yup.object({
+  oldPassword: Yup.string().required("Current password is required"),
+  newPassword: Yup.string()
+    .min(8, "Must be at least 8 characters")
+    .matches(/[A-Z]/, "Must contain at least one uppercase letter")
+    .matches(/[0-9]/, "Must contain at least one number")
+    .required("New password is required"),
+  confirmPassword: Yup.string()
+    .oneOf([Yup.ref("newPassword")], "Passwords do not match")
+    .required("Please confirm your new password"),
+});
+
+const inputStyle = {
+  "& .MuiOutlinedInput-root": {
+    borderRadius: 2,
+    "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#1c56a3" },
+    "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "#004497" },
+  },
+  "& .MuiInputLabel-root.Mui-focused": { color: "#004497" },
+};
+
+export default function ChangePasswordModal({ open, onClose }) {
+  const [showOld, setShowOld] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  const handleSubmit = async (values, { setSubmitting, resetForm }) => {
+    await new Promise((r) => setTimeout(r, 700));
+    setSubmitting(false);
+    setSuccess(true);
+    resetForm();
+    setTimeout(() => { setSuccess(false); onClose(); }, 1500);
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="xs"
+      fullWidth
+      PaperProps={{ sx: { borderRadius: 3, boxShadow: "0 24px 60px rgba(0,0,0,0.15)",overflowY: "auto", scrollbarWidth: "none",
+    "&::-webkit-scrollbar": { display: "none" },
+    scrollBehavior: "smooth", } }}
+    >
+      <Box sx={{ background: "linear-gradient(135deg, #004497 0%, #1c56a3 100%)", p: 2.5, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+          <Key sx={{ color: "#fff", fontSize: 20 }} />
+          <Typography variant="subtitle1" sx={{ color: "#fff", fontWeight: 700 }}>Change Password</Typography>
+        </Box>
+        <IconButton size="small" onClick={onClose} sx={{ color: "rgba(255,255,255,0.8)" }}>
+          <Close fontSize="small" />
+        </IconButton>
+      </Box>
+
+      <Formik initialValues={{ oldPassword: "", newPassword: "", confirmPassword: "" }} validationSchema={changePasswordSchema} onSubmit={handleSubmit}>
+        {({ values, errors, touched, handleChange, handleBlur, isSubmitting }) => (
+          <Form noValidate>
+            <DialogContent sx={{ p: 3 }}>
+              {success && <Alert severity="success" sx={{ mb: 2, borderRadius: 2 }}>Password changed successfully!</Alert>}
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
+                <TextField
+                  fullWidth name="oldPassword" label="Current Password *"
+                  type={showOld ? "text" : "password"}
+                  value={values.oldPassword} onChange={handleChange} onBlur={handleBlur}
+                  error={touched.oldPassword && Boolean(errors.oldPassword)}
+                  helperText={touched.oldPassword && errors.oldPassword}
+                  size="small"
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton size="small" onClick={() => setShowOld(!showOld)}>
+                          {showOld ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={inputStyle}
+                />
+                <TextField
+                  fullWidth name="newPassword" label="New Password *"
+                  type={showNew ? "text" : "password"}
+                  value={values.newPassword} onChange={handleChange} onBlur={handleBlur}
+                  error={touched.newPassword && Boolean(errors.newPassword)}
+                  helperText={touched.newPassword && errors.newPassword}
+                  size="small"
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton size="small" onClick={() => setShowNew(!showNew)}>
+                          {showNew ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={inputStyle}
+                />
+                <TextField
+                  fullWidth name="confirmPassword" label="Confirm New Password *"
+                  type={showConfirm ? "text" : "password"}
+                  value={values.confirmPassword} onChange={handleChange} onBlur={handleBlur}
+                  error={touched.confirmPassword && Boolean(errors.confirmPassword)}
+                  helperText={touched.confirmPassword && errors.confirmPassword}
+                  size="small"
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton size="small" onClick={() => setShowConfirm(!showConfirm)}>
+                          {showConfirm ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={inputStyle}
+                />
+              </Box>
+            </DialogContent>
+            <Divider />
+            <DialogActions sx={{ px: 3, py: 2, gap: 1 }}>
+              <Button onClick={onClose} variant="outlined" sx={{ borderRadius: 2, textTransform: "none", borderColor: "#d0d5dd", color: "#555" }}>Cancel</Button>
+              <Button type="submit" variant="contained" disabled={isSubmitting} sx={{ borderRadius: 2, background: "linear-gradient(135deg, #004497, #1c56a3)", textTransform: "none", fontWeight: 600 }}>
+                {isSubmitting ? <CircularProgress size={20} sx={{ color: "#fff" }} /> : "Update Password"}
+              </Button>
+            </DialogActions>
+          </Form>
+        )}
+      </Formik>
+    </Dialog>
+  );
+}
