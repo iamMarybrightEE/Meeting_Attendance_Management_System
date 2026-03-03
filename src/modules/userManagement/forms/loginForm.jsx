@@ -28,7 +28,7 @@ const loginSchema = Yup.object({
     .email("Please enter a valid email address")
     .required("Email is required"),
   password: Yup.string()
-    .min(6, "Password must be at least 6 characters")
+    .min(8, "Password must be at least 8 characters")
     .required("Password is required"),
 });
 
@@ -40,14 +40,17 @@ export default function LoginForm() {
 
   const handleSubmit = async (values, { setSubmitting }) => {
     setLoginError("");
-    // Simulate API delay
-    await new Promise((r) => setTimeout(r, 800));
-    const result = login(values.email, values.password);
-    setSubmitting(false);
-    if (result.success) {
-      router.push("/dashboard");
-    } else {
-      setLoginError("Invalid email or password. Please try again.");
+    try {
+      const result = await login(values.email, values.password);
+      if (result.success) {
+        router.push("/dashboard");
+      } else {
+        setLoginError(result.message || "Invalid email or password. Please try again.");
+      }
+    } catch (err) {
+      setLoginError("An unexpected error occurred. Please try again.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -60,6 +63,7 @@ export default function LoginForm() {
         minHeight: { xs: "100vh", lg: "auto" },
         p: { xs: 3, sm: 4 },
       }}
+      
     >
       <Paper
         elevation={0}
@@ -233,26 +237,6 @@ export default function LoginForm() {
             )}
           </Formik>
 
-          {/* Demo credentials hint */}
-          <Box
-            sx={{
-              mt: 3,
-              p: 2,
-              borderRadius: 2,
-              bgcolor: "#f0f4ff",
-              border: "1px solid #dae3f4",
-            }}
-          >
-            <Typography variant="caption" sx={{ color: "#004497", fontWeight: 600, display: "block", mb: 0.5 }}>
-              Demo Credentials
-            </Typography>
-            <Typography variant="caption" sx={{ color: "#555", display: "block" }}>
-              Email: sarah.nakamura@ura.go.ug
-            </Typography>
-            <Typography variant="caption" sx={{ color: "#555", display: "block" }}>
-              Password: any password works
-            </Typography>
-          </Box>
         </Box>
       </Paper>
     </Box>

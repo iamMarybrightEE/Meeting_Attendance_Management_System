@@ -7,7 +7,6 @@ export default function Home() {
   // redirect('/login')
 
   return (
-    <div className="">
       <main className="bg-animated-gradient lg:grid grid-cols-2 min-h-screen  items-center justify-center w-full  text-center">
         <div className="hidden bg-background h-full w-full lg:flex flex-col items-center justify-center">
           {/* Animated background shapes */}
@@ -27,7 +26,6 @@ export default function Home() {
         </div>
         <LoginForm/>
       </main>
-    </div>
   );
 }
 

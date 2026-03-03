@@ -18,43 +18,59 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Checkbox,
-  ListItemText,
   FormHelperText,
   Chip,
 } from "@mui/material";
 import { Close, Security } from "@mui/icons-material";
-import { ROLES_DATA, PERMISSIONS } from "../../../data/dummyData";
+import { useAuth } from "../../../context/AuthContext";
+import { rolesApi } from "../../../lib/apiClient";
 
 const permissionSchema = Yup.object({
-  roleId: Yup.string().required("Please select a role"),
+  roleId:        Yup.string().required("Please select a role"),
   permissionIds: Yup.array().min(1, "Select at least one permission").required("Permissions are required"),
 });
 
-const inputStyle = {
-  "& .MuiOutlinedInput-root": {
-    borderRadius: 2,
-    "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#1c56a3" },
-    "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "#004497" },
-  },
-  "& .MuiInputLabel-root.Mui-focused": { color: "#004497" },
-};
-
-// Group permissions by module
-const groupedPermissions = PERMISSIONS.reduce((acc, perm) => {
-  if (!acc[perm.module]) acc[perm.module] = [];
-  acc[perm.module].push(perm);
-  return acc;
-}, {});
-
-export default function PermissionAssignmentModal({ open, onClose }) {
+export default function PermissionAssignmentModal({ open, onClose, onSuccess }) {
+  const { roles } = useAuth();
   const [success, setSuccess] = useState(false);
+  const [apiError, setApiError] = useState("");
+
+  // Collect all unique permissions from all roles
+  const allPermissions = [];
+  const permSet = new Set();
+  roles.forEach((role) => {
+    (role.permissions || []).forEach((p) => {
+      if (!permSet.has(p.id)) {
+        permSet.add(p.id);
+        allPermissions.push(p);
+      }
+    });
+  });
+
+  // Group by module
+  const groupedPermissions = allPermissions.reduce((acc, perm) => {
+    const mod = perm.module || "General";
+    if (!acc[mod]) acc[mod] = [];
+    acc[mod].push(perm);
+    return acc;
+  }, {});
 
   const handleSubmit = async (values, { setSubmitting, resetForm }) => {
-    await new Promise((r) => setTimeout(r, 600));
-    setSubmitting(false);
-    setSuccess(true);
-    setTimeout(() => { setSuccess(false); onClose(); }, 1500);
+    setApiError("");
+    try {
+      await rolesApi.update(values.roleId, { permission_ids: values.permissionIds });
+      setSuccess(true);
+      resetForm();
+      setTimeout(() => {
+        setSuccess(false);
+        onSuccess?.();
+        onClose();
+      }, 1500);
+    } catch (err) {
+      setApiError(err.message || "Failed to update permissions.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -63,9 +79,7 @@ export default function PermissionAssignmentModal({ open, onClose }) {
       onClose={onClose}
       maxWidth="sm"
       fullWidth
-      PaperProps={{ sx: { borderRadius: 3, boxShadow: "0 24px 60px rgba(0,0,0,0.15)", overflowY: "auto", scrollbarWidth: "none",
-    "&::-webkit-scrollbar": { display: "none" },
-    scrollBehavior: "smooth",} }}
+      PaperProps={{ sx: { borderRadius: 3, boxShadow: "0 24px 60px rgba(0,0,0,0.15)", overflowY: "auto", scrollbarWidth: "none", "&::-webkit-scrollbar": { display: "none" } } }}
     >
       <Box sx={{ background: "linear-gradient(135deg, #004497 0%, #1c56a3 100%)", p: 2.5, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
@@ -85,7 +99,9 @@ export default function PermissionAssignmentModal({ open, onClose }) {
         {({ values, errors, touched, handleChange, handleBlur, setFieldValue, isSubmitting }) => (
           <Form noValidate>
             <DialogContent sx={{ p: 3 }}>
-              {success && <Alert severity="success" sx={{ mb: 2, borderRadius: 2 }}>Permissions updated successfully!</Alert>}
+              {success   && <Alert severity="success" sx={{ mb: 2, borderRadius: 2 }}>Permissions updated successfully!</Alert>}
+              {apiError  && <Alert severity="error"   sx={{ mb: 2, borderRadius: 2 }} onClose={() => setApiError("")}>{apiError}</Alert>}
+
               <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
                 <FormControl fullWidth size="small" error={touched.roleId && Boolean(errors.roleId)}>
                   <InputLabel sx={{ "&.Mui-focused": { color: "#004497" } }}>Select Role *</InputLabel>
@@ -94,15 +110,15 @@ export default function PermissionAssignmentModal({ open, onClose }) {
                     value={values.roleId}
                     onChange={(e) => {
                       handleChange(e);
-                      // Auto-select current role permissions
-                      const role = ROLES_DATA.find(r => r.id === e.target.value);
+                      // Pre-fill with current role's permissions
+                      const role = roles.find(r => r.id === e.target.value);
                       if (role) setFieldValue("permissionIds", role.permissionIds);
                     }}
                     onBlur={handleBlur}
                     label="Select Role *"
                     sx={{ borderRadius: 2 }}
                   >
-                    {ROLES_DATA.map((r) => (
+                    {roles.map((r) => (
                       <MenuItem key={r.id} value={r.id}>
                         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                           <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: r.color }} />
@@ -115,10 +131,10 @@ export default function PermissionAssignmentModal({ open, onClose }) {
                 </FormControl>
 
                 {/* Permission Groups */}
-                {Object.entries(groupedPermissions).map(([module, perms]) => (
-                  <Box key={module}>
+                {Object.entries(groupedPermissions).map(([mod, perms]) => (
+                  <Box key={mod}>
                     <Typography variant="caption" sx={{ fontWeight: 700, color: "#004497", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", mb: 1 }}>
-                      {module}
+                      {mod}
                     </Typography>
                     <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
                       {perms.map((perm) => {
@@ -126,7 +142,7 @@ export default function PermissionAssignmentModal({ open, onClose }) {
                         return (
                           <Chip
                             key={perm.id}
-                            label={perm.name}
+                            label={perm.action || perm.description}
                             size="small"
                             onClick={() => {
                               if (isSelected) {
@@ -140,7 +156,7 @@ export default function PermissionAssignmentModal({ open, onClose }) {
                               borderRadius: "6px",
                               fontWeight: isSelected ? 600 : 400,
                               bgcolor: isSelected ? "#004497" : "#f0f4ff",
-                              color: isSelected ? "#fff" : "#004497",
+                              color:   isSelected ? "#fff"    : "#004497",
                               border: `1px solid ${isSelected ? "#004497" : "#dae3f4"}`,
                               fontSize: "0.72rem",
                               transition: "all 0.15s",
@@ -167,7 +183,9 @@ export default function PermissionAssignmentModal({ open, onClose }) {
             <Divider />
             <DialogActions sx={{ px: 3, py: 2, gap: 1 }}>
               <Button onClick={onClose} variant="outlined" sx={{ borderRadius: 2, textTransform: "none", borderColor: "#d0d5dd", color: "#555" }}>Cancel</Button>
-              <Button type="submit" variant="contained" disabled={isSubmitting} sx={{ borderRadius: 2, background: "linear-gradient(135deg, #004497, #1c56a3)", textTransform: "none", fontWeight: 600 }}>
+              <Button type="submit" variant="contained" disabled={isSubmitting}
+                sx={{ borderRadius: 2, background: "linear-gradient(135deg, #004497, #1c56a3)", textTransform: "none", fontWeight: 600 }}
+              >
                 {isSubmitting ? <CircularProgress size={20} sx={{ color: "#fff" }} /> : "Save Permissions"}
               </Button>
             </DialogActions>

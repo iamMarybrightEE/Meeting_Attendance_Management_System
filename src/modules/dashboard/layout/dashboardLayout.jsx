@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
   AppBar,
@@ -20,6 +20,7 @@ import {
   Menu,
   MenuItem,
   Chip,
+  Button,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
@@ -36,8 +37,10 @@ import {
   Settings,
   KeyboardArrowDown,
   Shield,
+  DoneAll,
 } from "@mui/icons-material";
 import { useAuth } from "../../../context/AuthContext";
+import { auditLogsApi } from "../../../lib/apiClient";
 
 const drawerWidth = 260;
 
@@ -51,11 +54,11 @@ const navItems = [
 function getRoleColor(role) {
   switch (role) {
     case "System Administrator":
-      return { bg: "#004497", color: "#fff" };
+      return { bg: "#c0392b", color: "#fff" };
     case "Admin":
-      return { bg: "#1c56a3", color: "#fff" };
+      return { bg: "#b7791f", color: "#fff" };
     case "Chairperson":
-      return { bg: "#4f88c3", color: "#fff" };
+      return { bg: "#2980b9", color: "#fff" };
     default:
       return { bg: "#6c757d", color: "#fff" };
   }
@@ -63,6 +66,26 @@ function getRoleColor(role) {
 
 function getInitials(firstName, lastName) {
   return `${firstName?.[0] || ""}${lastName?.[0] || ""}`.toUpperCase();
+}
+
+function getNotifColor(action) {
+  if (!action) return "#6b7280";
+  if (action.includes("AUTH_FAILED") || action.includes("LOCKED") || action.includes("DELETE")) return "#f74a4d";
+  if (action.includes("AUTH_LOGIN")) return "#018e11";
+  if (action.includes("CREATE")) return "#004497";
+  if (action.includes("SUSPENDED")) return "#FFB236";
+  return "#6b7280";
+}
+
+function getRelativeTime(timestamp) {
+  const diff = Date.now() - new Date(timestamp).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
 }
 
 export default function DashboardLayout({ children }) {
@@ -76,6 +99,43 @@ export default function DashboardLayout({ children }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const [notifAnchor, setNotifAnchor] = useState(null);
+
+  // Notifications state
+  const [notifications, setNotifications] = useState([]);
+  const [readIds, setReadIds] = useState(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      return new Set(JSON.parse(localStorage.getItem("mams_read_notifs") || "[]"));
+    } catch {
+      return new Set();
+    }
+  });
+
+  const unreadCount = notifications.filter((n) => !readIds.has(n.id)).length;
+
+  // Fetch recent audit logs for notifications
+  useEffect(() => {
+    auditLogsApi
+      .list({ limit: 15 })
+      .then((result) => setNotifications(result.logs || []))
+      .catch(() => {});
+  }, []);
+
+  const markAllRead = () => {
+    const newReadIds = new Set([...readIds, ...notifications.map((n) => n.id)]);
+    setReadIds(newReadIds);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("mams_read_notifs", JSON.stringify([...newReadIds]));
+    }
+  };
+
+  const markRead = (id) => {
+    const newReadIds = new Set([...readIds, id]);
+    setReadIds(newReadIds);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("mams_read_notifs", JSON.stringify([...newReadIds]));
+    }
+  };
 
   const handleDrawerToggle = () => setMobileOpen(!mobileOpen);
   const handleProfileMenuOpen = (e) => setAnchorEl(e.currentTarget);
@@ -370,7 +430,7 @@ export default function DashboardLayout({ children }) {
             {/* Notifications */}
             <Tooltip title="Notifications">
               <IconButton onClick={handleNotifOpen} sx={{ color: "#004497" }}>
-                <Badge badgeContent={3} color="error" variant="dot">
+                <Badge badgeContent={unreadCount > 0 ? unreadCount : null} color="error">
                   <Notifications />
                 </Badge>
               </IconButton>
@@ -381,27 +441,102 @@ export default function DashboardLayout({ children }) {
               open={Boolean(notifAnchor)}
               onClose={handleNotifClose}
               PaperProps={{
-                sx: { width: 320, maxHeight: 400, mt: 1, borderRadius: 2, boxShadow: "0 8px 32px rgba(0,0,0,0.12)" },
+                sx: { width: 360, maxHeight: 480, mt: 1, borderRadius: 2, boxShadow: "0 8px 32px rgba(0,0,0,0.12)", overflow: "hidden" },
               }}
               transformOrigin={{ horizontal: "right", vertical: "top" }}
               anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
             >
-              <Box sx={{ p: 2, borderBottom: "1px solid #e8edf3" }}>
-                <Typography variant="subtitle2" fontWeight={700} color="#004497">Notifications</Typography>
+              {/* Notification Header */}
+              <Box
+                sx={{
+                  px: 2.5,
+                  py: 2,
+                  borderBottom: "1px solid #e8edf3",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <Box>
+                  <Typography variant="subtitle2" fontWeight={700} color="#004497">
+                    Notifications
+                  </Typography>
+                  {unreadCount > 0 && (
+                    <Typography variant="caption" color="text.secondary">
+                      {unreadCount} unread
+                    </Typography>
+                  )}
+                </Box>
+                {unreadCount > 0 && (
+                  <Tooltip title="Mark all as read">
+                    <Button
+                      size="small"
+                      startIcon={<DoneAll sx={{ fontSize: 16 }} />}
+                      onClick={markAllRead}
+                      sx={{
+                        textTransform: "none",
+                        fontSize: "0.75rem",
+                        color: "#004497",
+                        py: 0.5,
+                        borderRadius: 1.5,
+                        "&:hover": { bgcolor: "#e8f0fe" },
+                      }}
+                    >
+                      Read all
+                    </Button>
+                  </Tooltip>
+                )}
               </Box>
-              {[
-                { text: "Brian Tumusiime account was locked", time: "2 hrs ago", color: "#f74a4d" },
-                { text: "New user Emmanuel Katongole created", time: "4 hrs ago", color: "#004497" },
-                { text: "Diana Nakato account deactivated", time: "1 day ago", color: "#FFB236" },
-              ].map((n, i) => (
-                <MenuItem key={i} onClick={handleNotifClose} sx={{ py: 1.5, alignItems: "flex-start", gap: 1.5 }}>
-                  <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: n.color, mt: 0.7, flexShrink: 0 }} />
-                  <Box>
-                    <Typography variant="body2" sx={{ fontSize: "0.82rem" }}>{n.text}</Typography>
-                    <Typography variant="caption" color="text.secondary">{n.time}</Typography>
+
+              {/* Notification Items */}
+              <Box sx={{ overflowY: "auto", maxHeight: 360 }}>
+                {notifications.length === 0 ? (
+                  <Box sx={{ py: 4, textAlign: "center" }}>
+                    <Typography variant="body2" color="text.secondary">No notifications</Typography>
                   </Box>
-                </MenuItem>
-              ))}
+                ) : (
+                  notifications.map((notif) => {
+                    const isUnread = !readIds.has(notif.id);
+                    return (
+                      <MenuItem
+                        key={notif.id}
+                        onClick={() => { markRead(notif.id); handleNotifClose(); }}
+                        sx={{
+                          py: 1.5,
+                          px: 2.5,
+                          alignItems: "flex-start",
+                          gap: 1.5,
+                          bgcolor: isUnread ? "#f0f4ff" : "transparent",
+                          "&:hover": { bgcolor: isUnread ? "#e8f0fe" : "#f8fafc" },
+                          borderBottom: "1px solid #f3f4f6",
+                        }}
+                      >
+                        <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: getNotifColor(notif.action), mt: 0.6, flexShrink: 0 }} />
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography variant="body2" sx={{ fontSize: "0.82rem", color: "#1a1a2e", lineHeight: 1.4, whiteSpace: "normal" }}>
+                            {notif.description}
+                          </Typography>
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.5 }}>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>
+                              {getRelativeTime(notif.timestamp)}
+                            </Typography>
+                            {notif.module && (
+                              <Chip
+                                label={notif.module}
+                                size="small"
+                                sx={{ height: 16, fontSize: "0.6rem", bgcolor: "#f3f4f6", color: "#6b7280", borderRadius: "4px" }}
+                              />
+                            )}
+                          </Box>
+                        </Box>
+                        {isUnread && (
+                          <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#004497", mt: 0.8, flexShrink: 0 }} />
+                        )}
+                      </MenuItem>
+                    );
+                  })
+                )}
+              </Box>
             </Menu>
 
             {/* Profile Menu */}

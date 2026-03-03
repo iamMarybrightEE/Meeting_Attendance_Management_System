@@ -1,32 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Box,
   Typography,
   Paper,
-  Grid,
   Chip,
   Button,
   Avatar,
-  Divider,
   LinearProgress,
-  Tooltip,
 } from "@mui/material";
 import {
   People,
-  PersonAdd,
   AdminPanelSettings,
   SupervisorAccount,
   PersonOff,
   CheckCircle,
-  Lock,
   TrendingUp,
   ArrowForward,
 } from "@mui/icons-material";
 import { useAuth } from "../../../context/AuthContext";
-import { ACCOUNT_STATUS, AUDIT_LOGS } from "../../../data/dummyData";
+import { ACCOUNT_STATUS } from "../../../data/dummyData";
+import { auditLogsApi } from "../../../lib/apiClient";
 
 function StatCard({ icon, label, value, color, bg, change }) {
   return (
@@ -75,44 +71,59 @@ function StatCard({ icon, label, value, color, bg, change }) {
   );
 }
 
-function getInitials(firstName, lastName) {
-  return `${firstName?.[0] || ""}${lastName?.[0] || ""}`.toUpperCase();
-}
-
-function getAvatarColor(role) {
-  const map = { "System Administrator": "#004497", Admin: "#1c56a3", Chairperson: "#4f88c3", Staff: "#6c757d" };
-  return map[role] || "#6c757d";
-}
-
 function getActionColor(action) {
-  const map = { LOGIN: "#018e11", FAILED_LOGIN: "#f74a4d", CREATE_USER: "#004497", SUSPEND_USER: "#FFB236", LOCK_ACCOUNT: "#f74a4d", ROLE_CHANGE: "#8557D3", PASSWORD_RESET: "#0073ff", DEACTIVATE_USER: "#ff5062", PROFILE_UPDATE: "#6c757d" };
+  const map = {
+    // Auth
+    AUTH_LOGIN:              "#018e11",
+    AUTH_LOGOUT:             "#6c757d",
+    AUTH_FAILED:             "#f74a4d",
+    AUTH_LOGIN_FAILED:       "#f74a4d",
+    // User management
+    USER_CREATE:             "#004497",
+    USER_UPDATE:             "#0073ff",
+    USER_STATUS_ACTIVE:      "#018e11",
+    USER_STATUS_INACTIVE:    "#6c757d",
+    USER_STATUS_SUSPENDED:   "#FFB236",
+    USER_STATUS_LOCKED:      "#f74a4d",
+    USER_PERMISSIONS_UPDATE: "#8557D3",
+    // Roles
+    ROLE_CREATE:             "#004497",
+    ROLE_UPDATE:             "#8557D3",
+    ROLE_DELETE:             "#f74a4d",
+    // Password
+    PASSWORD_CHANGE:         "#0073ff",
+    PASSWORD_RESET:          "#0073ff",
+  };
   return map[action] || "#6c757d";
 }
 
 export default function DashboardPageContent() {
   const router = useRouter();
-  const { users, currentUser } = useAuth();
+  const { users, currentUser, roles } = useAuth();
+  const [recentLogs, setRecentLogs] = useState([]);
 
-  const activeUsers = users.filter((u) => u.status === ACCOUNT_STATUS.ACTIVE).length;
+  useEffect(() => {
+    auditLogsApi.list({ limit: 8 })
+      .then(({ logs }) => setRecentLogs(logs || []))
+      .catch(() => {});
+  }, []);
+
+  const activeUsers    = users.filter((u) => u.status === ACCOUNT_STATUS.ACTIVE).length;
   const suspendedUsers = users.filter((u) => u.status === ACCOUNT_STATUS.SUSPENDED).length;
-  const lockedUsers = users.filter((u) => u.status === ACCOUNT_STATUS.LOCKED).length;
-  const adminUsers = users.filter((u) => u.role === "System Administrator" || u.role === "Admin").length;
+  const adminUsers     = users.filter((u) => u.role === "System Administrator" || u.role === "Admin").length;
 
-  const recentLogs = AUDIT_LOGS.slice(0, 8);
-
-  const roleDistribution = [
-    { label: "System Admin", count: users.filter((u) => u.role === "System Administrator").length, color: "#004497" },
-    { label: "Admin", count: users.filter((u) => u.role === "Admin").length, color: "#1c56a3" },
-    { label: "Chairperson", count: users.filter((u) => u.role === "Chairperson").length, color: "#4f88c3" },
-    { label: "Staff", count: users.filter((u) => u.role === "Staff").length, color: "#6c757d" },
-  ];
+  const roleDistribution = roles.map((r) => ({
+    label: r.name,
+    count: users.filter((u) => u.role === r.name).length,
+    color: r.color,
+  }));
 
   return (
     <Box sx={{ animation: "fadeIn 0.4s ease", "@keyframes fadeIn": { from: { opacity: 0 }, to: { opacity: 1 } } }}>
       {/* Welcome Header */}
       <Box sx={{ mb: 3 }}>
         <Typography variant="h5" sx={{ fontWeight: 700, color: "#1a1a2e", fontSize: { xs: "1.2rem", sm: "1.4rem" } }}>
-          Welcome back, {currentUser?.firstName} 
+          Welcome back, {currentUser?.firstName}
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.3 }}>
           Here&apos;s what&apos;s happening in your system today.
@@ -121,11 +132,10 @@ export default function DashboardPageContent() {
 
       {/* Stats Grid */}
       <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 2, mb: 3 }}>
-        <StatCard icon={<People />} label="Total Users" value={users.length} color="#004497" change="+2 this month" />
-        <StatCard icon={<CheckCircle />} label="Active Users" value={activeUsers} color="#018e11" />
-        <StatCard icon={<AdminPanelSettings />} label="Admins" value={adminUsers} color="#1c56a3" />
-        <StatCard icon={<PersonOff />} label="Suspended" value={suspendedUsers} color="#FFB236" />
-        {/* <StatCard icon={<Lock />} label="Locked" value={lockedUsers} color="#f74a4d" /> */}
+        <StatCard icon={<People />}             label="Total Users"  value={users.length}   color="#004497" change="+2 this month" />
+        <StatCard icon={<CheckCircle />}        label="Active Users" value={activeUsers}     color="#018e11" />
+        <StatCard icon={<AdminPanelSettings />} label="Admins"       value={adminUsers}      color="#1c56a3" />
+        <StatCard icon={<PersonOff />}          label="Suspended"    value={suspendedUsers}  color="#FFB236" />
       </Box>
 
       {/* Two Column Section */}
@@ -144,9 +154,13 @@ export default function DashboardPageContent() {
             </Button>
           </Box>
           <Box sx={{ p: 1 }}>
-            {recentLogs.map((log, i) => (
+            {recentLogs.length === 0 ? (
+              <Box sx={{ p: 3, textAlign: "center" }}>
+                <Typography variant="body2" color="text.secondary">No recent activity</Typography>
+              </Box>
+            ) : recentLogs.map((log, i) => (
               <Box
-                key={log.id}
+                key={log.id || i}
                 sx={{
                   p: 1.5,
                   display: "flex",
@@ -158,16 +172,7 @@ export default function DashboardPageContent() {
                   "@keyframes slideIn": { from: { opacity: 0, transform: "translateX(-6px)" }, to: { opacity: 1, transform: "translateX(0)" } },
                 }}
               >
-                <Box
-                  sx={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
-                    bgcolor: getActionColor(log.action),
-                    mt: 0.7,
-                    flexShrink: 0,
-                  }}
-                />
+                <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: getActionColor(log.action), mt: 0.7, flexShrink: 0 }} />
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                   <Typography variant="body2" sx={{ fontSize: "0.82rem", color: "#374151", mb: 0.2 }}>
                     <strong>{log.userName}</strong> — {log.description}
@@ -188,7 +193,7 @@ export default function DashboardPageContent() {
           </Box>
         </Paper>
 
-        {/* Role Distribution */}
+        {/* Role Distribution + Quick Actions */}
         <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
           <Paper elevation={0} sx={{ borderRadius: 3, border: "1px solid #e8edf3", p: 2.5 }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 700, color: "#1a1a2e", mb: 2 }}>Role Distribution</Typography>
@@ -201,7 +206,7 @@ export default function DashboardPageContent() {
                   </Box>
                   <LinearProgress
                     variant="determinate"
-                    value={(r.count / users.length) * 100}
+                    value={users.length > 0 ? (r.count / users.length) * 100 : 0}
                     sx={{
                       height: 6,
                       borderRadius: 3,
@@ -219,9 +224,9 @@ export default function DashboardPageContent() {
             <Typography variant="subtitle1" sx={{ fontWeight: 700, color: "#1a1a2e", mb: 1.5 }}>Quick Actions</Typography>
             <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
               {[
-                { label: "Manage Users", path: "/user-management", icon: <People sx={{ fontSize: 16 }} /> },
-                { label: "Roles & Permissions", path: "/roles", icon: <AdminPanelSettings sx={{ fontSize: 16 }} /> },
-                { label: "Audit Logs", path: "/audit-logs", icon: <SupervisorAccount sx={{ fontSize: 16 }} /> },
+                { label: "Manage Users",         path: "/user-management", icon: <People sx={{ fontSize: 16 }} /> },
+                { label: "Roles & Permissions",  path: "/roles",           icon: <AdminPanelSettings sx={{ fontSize: 16 }} /> },
+                { label: "Audit Logs",           path: "/audit-logs",      icon: <SupervisorAccount sx={{ fontSize: 16 }} /> },
               ].map((action) => (
                 <Button
                   key={action.label}
@@ -248,48 +253,6 @@ export default function DashboardPageContent() {
           </Paper>
         </Box>
       </Box>
-
-      {/* Recent Users */}
-      {/* <Paper elevation={0} sx={{ borderRadius: 3, border: "1px solid #e8edf3", overflow: "hidden" }}>
-        <Box sx={{ p: 2.5, borderBottom: "1px solid #e8edf3", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Recent Users</Typography>
-          <Button size="small" endIcon={<ArrowForward sx={{ fontSize: 14 }} />} onClick={() => router.push("/user-management")} sx={{ textTransform: "none", color: "#004497", fontSize: "0.8rem" }}>
-            View All
-          </Button>
-        </Box>
-        <Box sx={{ p: 2, display: "flex", flexWrap: "wrap", gap: 2 }}>
-          {users.slice(0, 6).map((user, i) => (
-            <Box
-              key={user.id}
-              onClick={() => router.push(`/user-profile/${user.id}`)}
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 1.5,
-                p: 1.5,
-                borderRadius: 2,
-                border: "1px solid #e8edf3",
-                cursor: "pointer",
-                flex: "1 1 200px",
-                maxWidth: 260,
-                "&:hover": { bgcolor: "#f0f4ff", borderColor: "#004497" },
-                transition: "all 0.2s",
-                animation: `slideIn 0.3s ease ${i * 0.06}s both`,
-              }}
-            >
-              <Avatar sx={{ width: 36, height: 36, bgcolor: getAvatarColor(user.role), fontSize: "0.75rem", fontWeight: 700 }}>
-                {getInitials(user.firstName, user.lastName)}
-              </Avatar>
-              <Box sx={{ minWidth: 0 }}>
-                <Typography variant="body2" sx={{ fontWeight: 600, fontSize: "0.8rem", color: "#1a1a2e", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {user.firstName} {user.lastName}
-                </Typography>
-                <Chip label={user.role} size="small" sx={{ height: 18, fontSize: "0.62rem", bgcolor: getAvatarColor(user.role) + "18", color: getAvatarColor(user.role), fontWeight: 600, borderRadius: "4px" }} />
-              </Box>
-            </Box>
-          ))}
-        </Box>
-      </Paper> */}
     </Box>
   );
 }

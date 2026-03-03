@@ -19,6 +19,7 @@ import {
   Tab,
   LinearProgress,
   Tooltip,
+  CircularProgress,
 } from "@mui/material";
 import {
   ArrowBack,
@@ -34,8 +35,9 @@ import {
   Cancel,
   Warning,
 } from "@mui/icons-material";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "../../../context/AuthContext";
+import { auditLogsApi } from "../../../lib/apiClient";
 import { ACCOUNT_STATUS } from "../../../data/dummyData";
 import UserEditModal from "../forms/userEditModal";
 import ResetPasswordModal from "../forms/resetPasswordModal";
@@ -51,7 +53,7 @@ function getStatusChip(status) {
 }
 
 function getRoleColor(role) {
-  const map = { "System Administrator": "#004497", Admin: "#1c56a3", Chairperson: "#4f88c3", Staff: "#6c757d" };
+  const map = { "System Administrator": "#c0392b", Admin: "#b7791f", Chairperson: "#2980b9", Staff: "#27ae60" };
   return map[role] || "#6c757d";
 }
 
@@ -78,8 +80,29 @@ export default function UserProfilePage() {
   const [tab, setTab] = useState(0);
   const [editOpen, setEditOpen] = useState(false);
   const [resetPasswordOpen, setResetPasswordOpen] = useState(false);
+  const [loginHistory, setLoginHistory] = useState([]);
+  const [loginHistoryLoading, setLoginHistoryLoading] = useState(false);
 
   const user = users.find((u) => u.id === params.id);
+
+  // Fetch real login history from audit logs
+  useEffect(() => {
+    if (!user?.id) return;
+    setLoginHistoryLoading(true);
+    auditLogsApi
+      .list({ actor_id: user.id, limit: 30 })
+      .then((result) => {
+        // Filter to login-related actions
+        const loginLogs = (result.logs || []).filter((log) =>
+          log.action === "AUTH_LOGIN" ||
+          log.action === "AUTH_FAILED" ||
+          log.action === "AUTH_LOGIN_FAILED"
+        );
+        setLoginHistory(loginLogs);
+      })
+      .catch((err) => console.error("Failed to fetch login history:", err))
+      .finally(() => setLoginHistoryLoading(false));
+  }, [user?.id]);
 
   if (!user) {
     return (
@@ -229,7 +252,11 @@ export default function UserProfilePage() {
             {/* Login History */}
             {tab === 0 && (
               <Box sx={{ p: 2.5 }}>
-                {user.loginHistory.length === 0 ? (
+                {loginHistoryLoading ? (
+                  <Box sx={{ display: "flex", justifyContent: "center", py: 5 }}>
+                    <CircularProgress size={28} sx={{ color: "#004497" }} />
+                  </Box>
+                ) : loginHistory.length === 0 ? (
                   <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 4 }}>No login history available</Typography>
                 ) : (
                   <TableContainer>
@@ -242,18 +269,31 @@ export default function UserProfilePage() {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {user.loginHistory.map((log, i) => (
-                          <TableRow key={i} sx={{ "&:hover": { bgcolor: "#f8faff" } }}>
+                        {loginHistory.map((log, i) => (
+                          <TableRow key={log.id || i} sx={{ "&:hover": { bgcolor: "#f8faff" } }}>
                             <TableCell sx={{ py: 1.2 }}>
                               <Typography variant="body2" sx={{ fontSize: "0.8rem" }}>
                                 {new Date(log.timestamp).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                               </Typography>
                             </TableCell>
                             <TableCell>
-                              <Typography variant="caption" sx={{ fontFamily: "monospace", bgcolor: "#f3f4f6", px: 1, py: 0.3, borderRadius: 1 }}>{log.ip}</Typography>
+                              <Typography variant="caption" sx={{ fontFamily: "monospace", bgcolor: "#f3f4f6", px: 1, py: 0.3, borderRadius: 1, fontSize: "0.75rem" }}>
+                                {log.ipAddress || "N/A"}
+                              </Typography>
                             </TableCell>
                             <TableCell>
-                              <Chip label={log.status} size="small" sx={{ height: 20, fontSize: "0.68rem", fontWeight: 700, bgcolor: log.status === "success" ? "#e6f9ee" : "#fde8e8", color: log.status === "success" ? "#018e11" : "#f74a4d", borderRadius: "5px" }} />
+                              <Chip
+                                label={log.status === "success" ? "Success" : "Failed"}
+                                size="small"
+                                sx={{
+                                  height: 20,
+                                  fontSize: "0.68rem",
+                                  fontWeight: 700,
+                                  bgcolor: log.status === "success" ? "#e6f9ee" : "#fde8e8",
+                                  color: log.status === "success" ? "#018e11" : "#f74a4d",
+                                  borderRadius: "5px",
+                                }}
+                              />
                             </TableCell>
                           </TableRow>
                         ))}
@@ -285,7 +325,7 @@ export default function UserProfilePage() {
                         {item.label}
                       </Typography>
                       <Typography variant="body2" sx={{ fontWeight: 600, color: "#374151", mt: 0.3 }}>
-                        {item.value}
+                        {item.value || "—"}
                       </Typography>
                     </Box>
                   ))}

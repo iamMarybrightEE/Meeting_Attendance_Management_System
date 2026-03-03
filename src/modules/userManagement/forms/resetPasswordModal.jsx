@@ -18,8 +18,14 @@ import {
   Divider,
 } from "@mui/material";
 import { Close, Visibility, VisibilityOff, LockReset } from "@mui/icons-material";
+import { useAuth } from "../../../context/AuthContext";
 
 const resetPasswordSchema = Yup.object({
+  currentPassword: Yup.string()
+    .min(8, "Must be at least 8 characters")
+    .matches(/[A-Z]/, "Must contain at least one uppercase letter")
+    .matches(/[0-9]/, "Must contain at least one number")
+    .required("Current password is required"),
   newPassword: Yup.string()
     .min(8, "Must be at least 8 characters")
     .matches(/[A-Z]/, "Must contain at least one uppercase letter")
@@ -40,16 +46,25 @@ const inputStyle = {
 };
 
 export default function ResetPasswordModal({ open, onClose, user }) {
+  const { resetPassword } = useAuth();
+  const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [apiError, setApiError] = useState("");
 
   const handleSubmit = async (values, { setSubmitting, resetForm }) => {
-    await new Promise((r) => setTimeout(r, 700));
-    setSubmitting(false);
-    setSuccess(true);
-    resetForm();
-    setTimeout(() => { setSuccess(false); onClose(); }, 1500);
+    setApiError("");
+    try {
+      await resetPassword(user.id,values.currentPassword, values.newPassword);
+      setSuccess(true);
+      resetForm();
+      setTimeout(() => { setSuccess(false); onClose(); }, 1500);
+    } catch (err) {
+      setApiError(err.message || "Failed to reset password. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -75,15 +90,34 @@ export default function ResetPasswordModal({ open, onClose, user }) {
         </IconButton>
       </Box>
 
-      <Formik initialValues={{ newPassword: "", confirmPassword: "" }} validationSchema={resetPasswordSchema} onSubmit={handleSubmit}>
+      <Formik initialValues={{ currentPassword: "", newPassword: "", confirmPassword: "" }} validationSchema={resetPasswordSchema} onSubmit={handleSubmit}>
         {({ values, errors, touched, handleChange, handleBlur, isSubmitting }) => (
           <Form noValidate>
             <DialogContent sx={{ p: 3 }}>
               {success && <Alert severity="success" sx={{ mb: 2, borderRadius: 2 }}>Password reset successfully!</Alert>}
+              {apiError && <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setApiError("")}>{apiError}</Alert>}
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
                 Set a new password for this user account. They will be notified via email.
               </Typography>
               <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
+                <TextField
+                  fullWidth name="currentPassword" label="Current Password *"
+                  type={showCurrent ? "text" : "password"}
+                  value={values.currentPassword} onChange={handleChange} onBlur={handleBlur}
+                  error={touched.currentPassword && Boolean(errors.currentPassword)}
+                  helperText={touched.currentPassword && errors.currentPassword}
+                  size="small"
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton size="small" onClick={() => setShowCurrent(!showCurrent)}>
+                          {showCurrent ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={inputStyle}
+                />
                 <TextField
                   fullWidth name="newPassword" label="New Password *"
                   type={showNew ? "text" : "password"}

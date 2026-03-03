@@ -1,101 +1,148 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback } from "react";
-import { USERS, CURRENT_USER, ACCOUNT_STATUS } from "../data/dummyData";
+import { createContext, useContext, useState, useCallback, useEffect } from "react";
+import { authApi, usersApi, rolesApi, setSession, clearSession } from "@/lib/apiClient";
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [currentUser, setCurrentUser] = useState(CURRENT_USER);
-  const [users, setUsers] = useState(USERS);
-  const [isAuthenticated, setIsAuthenticated] = useState(true); // true for demo
+  const [currentUser, setCurrentUser]         = useState(null);
+  const [users, setUsers]                     = useState([]);
+  const [roles, setRoles]                     = useState([]);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading]             = useState(true);
 
-  const login = useCallback((email, password) => {
-    const user = USERS.find((u) => u.email === email);
-    if (user && user.status === ACCOUNT_STATUS.ACTIVE) {
-      setCurrentUser(user);
+  // USERS
+  const fetchUsers = useCallback(async (params = {}) => {
+    try {
+      const { users: data } = await usersApi.list(params);
+      setUsers(data || []);
+      return data;
+    } catch (err) {
+      console.error("fetchUsers error:", err.message);
+      return [];
+    }
+  }, []);
+
+  // ROLES
+  const fetchRoles = useCallback(async () => {
+    try {
+      const { roles: data } = await rolesApi.list();
+      setRoles(data || []);
+      return data;
+    } catch (err) {
+      console.error("fetchRoles error:", err.message);
+      return [];
+    }
+  }, []);
+
+  // Bootstrap session on mount
+  useEffect(() => {
+    const token = typeof window !== "undefined" && localStorage.getItem("mams_access_token");
+    if (token) {
+      authApi.me()
+        .then(({ user }) => {
+          setCurrentUser(user);
+          setIsAuthenticated(true);
+          // Load users and roles after auth
+          fetchUsers();
+          fetchRoles();
+        })
+        .catch(() => {
+          clearSession();
+          setIsAuthenticated(false);
+        })
+        .finally(() => setIsLoading(false));
+    } else {
+      setIsLoading(false);
+    }
+  }, [fetchUsers, fetchRoles]);
+
+  // AUTH
+  const login = useCallback(async (email, password) => {
+    try {
+      const data = await authApi.login(email, password);
+      setSession(data.session);
+      setCurrentUser(data.user);
       setIsAuthenticated(true);
-      return { success: true, user };
+      // Load users and roles after login
+      fetchUsers();
+      fetchRoles();
+      return { success: true, user: data.user };
+    } catch (err) {
+      return { success: false, message: err.message };
     }
-    return { success: false, message: "Invalid credentials or account inactive." };
-  }, []);
+  }, [fetchUsers, fetchRoles]);
 
-  const logout = useCallback(() => {
-    setIsAuthenticated(false);
+  const logout = useCallback(async () => {
+    try { await authApi.logout(); } catch {}
+    clearSession();
     setCurrentUser(null);
+    setIsAuthenticated(false);
+    setUsers([]);
+    setRoles([]);
   }, []);
 
-  const createUser = useCallback((userData) => {
-    const newUser = {
-      id: `usr-${Date.now()}`,
-      employeeId: userData.employeeId || `URA-2026-${Date.now()}`,
-      firstName: userData.firstName,
-      middleName: userData.middleName || "",
-      lastName: userData.lastName,
-      username: userData.username,
-      email: userData.email,
-      contact: userData.contact,
-      role: userData.role,
-      roleId: userData.roleId,
-      department: userData.department || "General",
-      status: ACCOUNT_STATUS.ACTIVE,
-      avatar: null,
-      createdAt: new Date().toISOString(),
-      lastLogin: null,
-      loginHistory: [],
-      attendanceStats: { present: 0, excused: 0, missed: 0 },
-    };
-    setUsers((prev) => [...prev, newUser]);
-    return newUser;
+  const createUser = useCallback(async (userData) => {
+    const data = await usersApi.create(userData);
+    setUsers((prev) => [data.user, ...prev]);
+    return data.user;
   }, []);
 
-  const updateUser = useCallback((userId, updatedData) => {
-    setUsers((prev) =>
-      prev.map((u) => (u.id === userId ? { ...u, ...updatedData } : u))
-    );
-    if (currentUser?.id === userId) {
-      setCurrentUser((prev) => ({ ...prev, ...updatedData }));
-    }
+  const updateUser = useCallback(async (userId, updatedData) => {
+    const data = await usersApi.update(userId, updatedData);
+    setUsers((prev) => prev.map((u) => (u.id === userId ? data.user : u)));
+    if (currentUser?.id === userId) setCurrentUser(data.user);
+    return data.user;
   }, [currentUser]);
 
-  const deleteUser = useCallback((userId) => {
+  const deleteUser = useCallback(async (userId) => {
+    await usersApi.delete(userId);
     setUsers((prev) => prev.filter((u) => u.id !== userId));
   }, []);
 
-  const changeUserStatus = useCallback((userId, newStatus) => {
-    setUsers((prev) =>
-      prev.map((u) => (u.id === userId ? { ...u, status: newStatus } : u))
-    );
+  const changeUserStatus = useCallback(async (userId, newStatus) => {
+    const data = await usersApi.changeStatus(userId, newStatus);
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, status: newStatus } : u)));
+    return data;
   }, []);
 
-  const changeUserRole = useCallback((userId, newRole, newRoleId) => {
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.id === userId ? { ...u, role: newRole, roleId: newRoleId } : u
-      )
-    );
+  const resetPassword = useCallback(async (userId, newPassword) => {
+    return usersApi.changePassword(userId, { new_password: newPassword });
   }, []);
 
-  const resetPassword = useCallback((userId) => {
-    // In real app this would trigger email. For demo, just return success
-    return { success: true, message: "Password reset link sent successfully." };
+  const changePassword = useCallback(async (userId, currentPassword, newPassword) => {
+    return usersApi.changePassword(userId, { current_password: currentPassword, new_password: newPassword });
   }, []);
 
-  const value = {
-    currentUser,
-    users,
-    isAuthenticated,
-    login,
-    logout,
-    createUser,
-    updateUser,
-    deleteUser,
-    changeUserStatus,
-    changeUserRole,
-    resetPassword,
-  };
+  const updatePermissions = useCallback(async (userId, permissions) => {
+    return usersApi.updatePermissions(userId, permissions);
+  }, []);
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider
+      value={{
+        currentUser,
+        users,
+        roles,
+        isAuthenticated,
+        isLoading,
+        login,
+        logout,
+        fetchUsers,
+        fetchRoles,
+        createUser,
+        updateUser,
+        deleteUser,
+        changeUserStatus,
+        resetPassword,
+        changePassword,
+        updatePermissions,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {
@@ -105,5 +152,3 @@ export function useAuth() {
   }
   return context;
 }
-
-export default AuthContext;
