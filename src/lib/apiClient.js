@@ -57,7 +57,7 @@ function normalizeUser(user) {
     id:              user.id,
     firstName:       user.first_name  || '',
     lastName:        user.last_name   || '',
-    middleName:      '',
+    middleName:      user.middle_name || '',
     username:        user.email?.split('@')[0] || '',
     email:           user.email       || '',
     contact:         user.phone       || '',
@@ -80,10 +80,12 @@ function normalizeUser(user) {
 function denormalizeUser(data) {
   const out = {};
   if (data.firstName   !== undefined) out.first_name   = data.firstName;
+  if (data.middleName  !== undefined) out.middle_name  = data.middleName;
   if (data.lastName    !== undefined) out.last_name    = data.lastName;
   if (data.email       !== undefined) out.email        = data.email;
   if (data.password    !== undefined) out.password     = data.password;
   if (data.contact     !== undefined) out.phone        = data.contact;
+  if (data.employeeId  !== undefined) out.employee_id  = data.employeeId;
   if (data.department  !== undefined) out.department   = data.department;
   if (data.job_title   !== undefined) out.job_title    = data.job_title;
   if (data.roleId      !== undefined) out.role_id      = data.roleId;

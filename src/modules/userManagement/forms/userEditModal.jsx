@@ -37,12 +37,15 @@ import { DEPARTMENTS, ACCOUNT_STATUS } from "../../../data/dummyData";
 import { useAuth } from "../../../context/AuthContext";
 
 const userEditSchema = Yup.object({
-  firstName:  Yup.string().min(2).required("First name is required"),
+  firstName: Yup.string().min(2).required("First name is required"),
   middleName: Yup.string(),
-  lastName:   Yup.string().min(2).required("Last name is required"),
-  email:      Yup.string().email("Invalid email").required("Email is required"),
-  roleId:     Yup.string().required("Role is required"),
-  contact:    Yup.string().required("Contact number is required"),
+  lastName: Yup.string().min(2).required("Last name is required"),
+  username: Yup.string().min(3).required("Username is required"),
+  email: Yup.string().email("Invalid email").required("Email is required"),
+  employeeId: Yup.string().required("Employee ID is required"),
+  roleId: Yup.string().required("Role is required"),
+  contact: Yup.string().required("Contact number is required"),
+  department: Yup.string().required("Department is required"),
   department: Yup.string().required("Department is required"),
   job_title:  Yup.string(),
 });
@@ -99,18 +102,18 @@ export default function UserEditModal({ open, onClose, user, onSuccess }) {
     }
   };
 
-  const handleSubmit = async (values, { setSubmitting }) => {
-    setApiError("");
-    try {
-      await updateUser(user.id, values);
-      onSuccess?.();
-      onClose();
-    } catch (err) {
-      setApiError(err.message || "Failed to update user.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
+ const handleSubmit = async (values, { setSubmitting }) => {
+  setApiError("");
+  try {
+    await updateUser(user.id, values);
+    onSuccess?.();
+    onClose();
+  } catch (err) {
+    setApiError(err.message || "Failed to update user.");
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   return (
     <Dialog
@@ -162,12 +165,14 @@ export default function UserEditModal({ open, onClose, user, onSuccess }) {
       {tabValue === 0 && (
         <Formik
           initialValues={{
-            firstName:  user.firstName  || "",
+            firstName: user.firstName || "",
             middleName: user.middleName || "",
-            lastName:   user.lastName   || "",
-            email:      user.email      || "",
-            roleId:     user.roleId     || "",
-            contact:    user.contact    || "",
+            lastName: user.lastName || "",
+            username: user.username || "",
+            email: user.email || "",
+            employeeId: user.employeeId || "",
+            roleId: user.roleId || "",
+            contact: user.contact || "",
             department: user.department || "",
             job_title:  user.job_title  || "",
           }}
@@ -200,6 +205,22 @@ export default function UserEditModal({ open, onClose, user, onSuccess }) {
                     value={values.middleName} onChange={handleChange} onBlur={handleBlur}
                     size="small" sx={inputStyle}
                   />
+                  <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+                    <TextField
+                      fullWidth name="username" label="Username *"
+                      value={values.username} onChange={handleChange} onBlur={handleBlur}
+                      error={touched.username && Boolean(errors.username)}
+                      helperText={touched.username && errors.username}
+                      size="small" sx={inputStyle}
+                    />
+                    <TextField
+                      fullWidth name="employeeId" label="Employee ID *"
+                      value={values.employeeId} onChange={handleChange} onBlur={handleBlur}
+                      error={touched.employeeId && Boolean(errors.employeeId)}
+                      helperText={touched.employeeId && errors.employeeId}
+                      size="small" sx={inputStyle}
+                    />
+                  </Box>
                   <TextField
                     fullWidth name="email" label="Email *" type="email"
                     value={values.email} onChange={handleChange} onBlur={handleBlur}

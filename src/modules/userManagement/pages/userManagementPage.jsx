@@ -63,20 +63,21 @@ function getStatusChip(status) {
 
 function getRoleChip(role) {
   const map = {
-    "System Administrator": { bgcolor: "#e8f0fe", color: "#004497" },
-    Admin:                  { bgcolor: "#e0eaff", color: "#1c56a3" },
-    Chairperson:            { bgcolor: "#e3f2fd", color: "#0b6cc2" },
-    Staff:                  { bgcolor: "#f3f4f6", color: "#4b4c4d" },
+    "System Administrator": { bgcolor: "#fff0f0", color: "#c0392b" },
+    Admin:                  { bgcolor: "#fff8e1", color: "#b7791f" },
+    Chairperson:            { bgcolor: "#e8f4f8", color: "#2980b9" },
+
+    Staff:                  { bgcolor: "#f0fff4", color: "#27ae60" },
   };
   return map[role] || { bgcolor: "#f3f4f6", color: "#555" };
 }
 
 function getAvatarColor(role) {
   const map = {
-    "System Administrator": "#004497",
-    Admin:                  "#1c56a3",
-    Chairperson:            "#0b6cc2",
-    Staff:                  "#4b4c4d",
+    "System Administrator": "#c0392b",
+    Admin:                  "#b7791f",
+    Chairperson:            "#2980b9",
+    Staff:                  "#27ae60",
   };
   return map[role] || "#6c757d";
 }

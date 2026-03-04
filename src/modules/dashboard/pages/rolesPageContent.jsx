@@ -53,16 +53,16 @@ function getLevelStyle(level) {
 
 function getRoleAccentColor(level) {
   const colors = {
-    1: "#004497",
-    2: "#1c56a3",
-    3: "#0b6cc2",
-    4: "#4b4c4d",
+    1: "#c0392b",
+    2: "#b7791f",
+    3: "#2980b9",
+    4: "#27ae60",
   };
   return colors[level] || "#6b7280";
 }
 
 export default function RolesPageContent() {
-  const { roles, fetchRoles } = useAuth();
+  const { roles, users, fetchRoles, fetchUsers } = useAuth();
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [createRoleOpen, setCreateRoleOpen]   = useState(false);
   const [snackbar, setSnackbar]               = useState({ open: false, message: "", severity: "success" });
@@ -71,9 +71,9 @@ export default function RolesPageContent() {
   useEffect(() => {
     if (roles.length === 0) {
       setLoading(true);
-      fetchRoles().finally(() => setLoading(false));
+      Promise.all([fetchRoles(), fetchUsers()]).finally(() => setLoading(false));
     }
-  }, []);
+  }, [fetchRoles, fetchUsers]);
 
   // Build all unique permissions across all roles
   const rawPermissions = [];
@@ -155,109 +155,109 @@ export default function RolesPageContent() {
             {roles.map((role, i) => {
               const levelStyle = getLevelStyle(role.level);
               const accentColor = getRoleAccentColor(role.level);
-              return (
-                <Paper
+                return (
+                  <Paper
                   key={role.id}
                   elevation={0}
                   sx={{
                     p: 2.5,
-              borderRadius: 3,
-              border: `1px solid ${role.color}22`,
-              background: `linear-gradient(135deg, ${role.color}08, ${role.color}04)`,
-              transition: "all 0.25s",
-              "&:hover": { transform: "translateY(-3px)", boxShadow: "0 8px 24px rgba(0,0,0,0.08)" },
-              animation: `slideIn 0.3s ease ${i * 0.08}s both`,
-              "@keyframes slideIn": { from: { opacity: 0, transform: "translateY(10px)" }, to: { opacity: 1, transform: "translateY(0)" } },
+                    borderRadius: 3,
+                    border: `1px solid ${role.color}22`,
+                    background: `linear-gradient(135deg, ${role.color}08, ${role.color}04)`,
+                    transition: "all 0.25s",
+                    "&:hover": { transform: "translateY(-3px)", boxShadow: "0 8px 24px rgba(0,0,0,0.08)" },
+                    animation: `slideIn 0.3s ease ${i * 0.08}s both`,
+                    "@keyframes slideIn": { from: { opacity: 0, transform: "translateY(10px)" }, to: { opacity: 1, transform: "translateY(0)" } },
                   }}
-                >
+                  >
                   {/* Top accent bar */}
                   {/* <Box sx={{ height: 4, background: `linear-gradient(90deg, ${accentColor}, ${accentColor}88)` }} /> */}
 
                   <Box sx={{ p: 2.5 }}>
                     {/* Header row: name + level badge */}
                     <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", mb: 1 }}>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
-                        <Box
-                          sx={{
-                            width: 36,
-                            height: 36,
-                            borderRadius: "10px",
-                            bgcolor: `${accentColor}15`,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            flexShrink: 0,
-                          }}
-                        >
-                          {role.level === 1
-                            ? <EmojiEvents sx={{ color: accentColor, fontSize: 18 }} />
-                            : <AdminPanelSettings sx={{ color: accentColor, fontSize: 18 }} />
-                          }
-                        </Box>
-                        <Typography variant="body1" sx={{ fontWeight: 700, color: "#1a1a2e", fontSize: "0.95rem", lineHeight: 1.2 }}>
-                          {role.name}
-                        </Typography>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
+                      <Box
+                      sx={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: "10px",
+                        bgcolor: `${accentColor}15`,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                      }}
+                      >
+                      {role.level === 1
+                        ? <EmojiEvents sx={{ color: accentColor, fontSize: 18 }} />
+                        : <AdminPanelSettings sx={{ color: accentColor, fontSize: 18 }} />
+                      }
                       </Box>
-                      <Chip
-                        label={levelStyle.label}
-                        size="small"
-                        sx={{
-                          height: 22,
-                          fontSize: "0.68rem",
-                          fontWeight: 700,
-                          bgcolor: levelStyle.bg,
-                          color: levelStyle.color,
-                          border: `1px solid ${levelStyle.border}`,
-                          borderRadius: "6px",
-                          flexShrink: 0,
-                        }}
-                      />
+                      <Typography variant="body1" sx={{ fontWeight: 700, color: "#1a1a2e", fontSize: "0.95rem", lineHeight: 1.2 }}>
+                      {role.name}
+                      </Typography>
+                    </Box>
+                    <Chip
+                      label={levelStyle.label}
+                      size="small"
+                      sx={{
+                      height: 22,
+                      fontSize: "0.68rem",
+                      fontWeight: 700,
+                      bgcolor: levelStyle.bg,
+                      color: levelStyle.color,
+                      border: `1px solid ${levelStyle.border}`,
+                      borderRadius: "6px",
+                      flexShrink: 0,
+                      }}
+                    />
                     </Box>
 
                     {/* Description */}
                     <Typography
-                      variant="body2"
-                      sx={{
-                        color: "#6b7280",
-                        fontSize: "0.78rem",
-                        lineHeight: 1.5,
-                        mb: 2,
-                        minHeight: 48,
-                      }}
+                    variant="body2"
+                    sx={{
+                      color: "#6b7280",
+                      fontSize: "0.78rem",
+                      lineHeight: 1.5,
+                      mb: 2,
+                      minHeight: 48,
+                    }}
                     >
-                      {role.description || "No description provided."}
+                    {role.description || "No description provided."}
                     </Typography>
 
                     <Divider sx={{ mb: 1.5 }} />
 
                     {/* Stats row */}
                     <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                        <People sx={{ fontSize: 15, color: "#9ca3af" }} />
-                        <Typography variant="caption" sx={{ color: "#6b7280", fontWeight: 500, fontSize: "0.75rem" }}>
-                          {role.userCount} {role.userCount === 1 ? "user" : "users"}
-                        </Typography>
-                      </Box>
-                      <Box
-                        sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 0.5,
-                          bgcolor: `${accentColor}10`,
-                          px: 1.2,
-                          py: 0.4,
-                          borderRadius: "6px",
-                        }}
-                      >
-                        <Security sx={{ fontSize: 13, color: accentColor }} />
-                        <Typography variant="caption" sx={{ color: accentColor, fontWeight: 700, fontSize: "0.73rem" }}>
-                          {role.permissionIds.length} {role.permissionIds.length === 1 ? "perm" : "perms"}
-                        </Typography>
-                      </Box>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                      <People sx={{ fontSize: 15, color: "#9ca3af" }} />
+                      <Typography variant="caption" sx={{ color: "#6b7280", fontWeight: 500, fontSize: "0.75rem" }}>
+                      {(() => { const count = users.filter(u => u.role === role.name).length; return `${count} ${count === 1 ? "user" : "users"}`; })()}
+                      </Typography>
+                    </Box>
+                    <Box
+                      sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 0.5,
+                      bgcolor: `${accentColor}10`,
+                      px: 1.2,
+                      py: 0.4,
+                      borderRadius: "6px",
+                      }}
+                    >
+                      <Security sx={{ fontSize: 13, color: accentColor }} />
+                      <Typography variant="caption" sx={{ color: accentColor, fontWeight: 700, fontSize: "0.73rem" }}>
+                      {role.permissionIds.length} {role.permissionIds.length === 1 ? "perm" : "perms"}
+                      </Typography>
+                    </Box>
                     </Box>
                   </Box>
-                </Paper>
-              );
+                  </Paper>
+                );
             })}
           </Box>
 

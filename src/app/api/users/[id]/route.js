@@ -46,7 +46,9 @@ export async function PATCH(request, { params }) {
 
   const allowed = {};
   if (body.first_name !== undefined) allowed.first_name = (body.first_name || '').trim().slice(0, 100);
+  if (body.middle_name !== undefined) allowed.middle_name = (body.middle_name || '').trim().slice(0, 100) || null;
   if (body.last_name  !== undefined) allowed.last_name  = (body.last_name  || '').trim().slice(0, 100);
+  if (body.employee_id !== undefined) allowed.employee_id = (body.employee_id || '').trim() || null;
   if (body.phone      !== undefined) allowed.phone      = (body.phone      || '').trim().slice(0, 50);
   if (body.department !== undefined) allowed.department = (body.department || '').trim().slice(0, 200);
   if (body.job_title  !== undefined) allowed.job_title  = (body.job_title  || '').trim().slice(0, 200);

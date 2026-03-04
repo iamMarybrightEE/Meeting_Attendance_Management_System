@@ -107,13 +107,14 @@ export function AuthProvider({ children }) {
     return data;
   }, []);
 
-  const resetPassword = useCallback(async (userId, newPassword) => {
-    return usersApi.changePassword(userId, { new_password: newPassword });
-  }, []);
-
-  const changePassword = useCallback(async (userId, currentPassword, newPassword) => {
+  const resetPassword = useCallback(async (userId, currentPassword, newPassword) => {
     return usersApi.changePassword(userId, { current_password: currentPassword, new_password: newPassword });
   }, []);
+
+  const changePassword = useCallback(async (currentPassword, newPassword) => {
+    if (!currentUser?.id) throw new Error('Not authenticated');
+    return usersApi.changePassword(currentUser.id, { current_password: currentPassword, new_password: newPassword });
+  }, [currentUser?.id]);
 
   const updatePermissions = useCallback(async (userId, permissions) => {
     return usersApi.updatePermissions(userId, permissions);

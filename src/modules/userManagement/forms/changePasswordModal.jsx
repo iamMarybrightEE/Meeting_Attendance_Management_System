@@ -18,6 +18,7 @@ import {
   Divider,
 } from "@mui/material";
 import { Close, Lock, Visibility, VisibilityOff, Key } from "@mui/icons-material";
+import { useAuth } from "../../../context/AuthContext";
 
 const changePasswordSchema = Yup.object({
   oldPassword: Yup.string().required("Current password is required"),
@@ -41,17 +42,25 @@ const inputStyle = {
 };
 
 export default function ChangePasswordModal({ open, onClose }) {
+  const { changePassword } = useAuth();
   const [showOld, setShowOld] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [apiError, setApiError] = useState("");
 
   const handleSubmit = async (values, { setSubmitting, resetForm }) => {
-    await new Promise((r) => setTimeout(r, 700));
-    setSubmitting(false);
-    setSuccess(true);
-    resetForm();
-    setTimeout(() => { setSuccess(false); onClose(); }, 1500);
+    setApiError("");
+    try {
+      await changePassword(values.oldPassword, values.newPassword);
+      setSuccess(true);
+      resetForm();
+      setTimeout(() => { setSuccess(false); onClose(); }, 1500);
+    } catch (err) {
+      setApiError(err.message || "Failed to change password. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -79,6 +88,7 @@ export default function ChangePasswordModal({ open, onClose }) {
           <Form noValidate>
             <DialogContent sx={{ p: 3 }}>
               {success && <Alert severity="success" sx={{ mb: 2, borderRadius: 2 }}>Password changed successfully!</Alert>}
+              {apiError && <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setApiError("")}>{apiError}</Alert>}
               <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
                 <TextField
                   fullWidth name="oldPassword" label="Current Password *"

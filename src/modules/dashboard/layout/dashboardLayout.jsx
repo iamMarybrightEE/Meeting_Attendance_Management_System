@@ -60,7 +60,7 @@ function getRoleColor(role) {
     case "Chairperson":
       return { bg: "#2980b9", color: "#fff" };
     default:
-      return { bg: "#6c757d", color: "#fff" };
+      return { bg: "#27ae60", color: "#fff" };
   }
 }
 
@@ -514,7 +514,7 @@ export default function DashboardLayout({ children }) {
                         <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: getNotifColor(notif.action), mt: 0.6, flexShrink: 0 }} />
                         <Box sx={{ flex: 1, minWidth: 0 }}>
                           <Typography variant="body2" sx={{ fontSize: "0.82rem", color: "#1a1a2e", lineHeight: 1.4, whiteSpace: "normal" }}>
-                            {notif.description}
+                            <strong>{notif.userName}</strong> {notif.description}
                           </Typography>
                           <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.5 }}>
                             <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>

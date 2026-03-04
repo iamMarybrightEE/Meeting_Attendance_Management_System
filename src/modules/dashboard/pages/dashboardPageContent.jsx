@@ -132,7 +132,9 @@ export default function DashboardPageContent() {
 
       {/* Stats Grid */}
       <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 2, mb: 3 }}>
-        <StatCard icon={<People />}             label="Total Users"  value={users.length}   color="#004497" change="+2 this month" />
+        <StatCard icon={<People />}             label="Total Users"  value={users.length}   color="#004497" 
+        // change="+2 this month" 
+        />
         <StatCard icon={<CheckCircle />}        label="Active Users" value={activeUsers}     color="#018e11" />
         <StatCard icon={<AdminPanelSettings />} label="Admins"       value={adminUsers}      color="#1c56a3" />
         <StatCard icon={<PersonOff />}          label="Suspended"    value={suspendedUsers}  color="#FFB236" />
@@ -201,7 +203,7 @@ export default function DashboardPageContent() {
               {roleDistribution.map((r) => (
                 <Box key={r.label}>
                   <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
-                    <Typography variant="body2" sx={{ fontSize: "0.8rem", fontWeight: 500, color: "#374151" }}>{r.label}</Typography>
+                    <Typography variant="body2" sx={{ fontSize: "0.8rem", fontWeight: 500, color: "" }}>{r.label}</Typography>
                     <Typography variant="body2" sx={{ fontSize: "0.8rem", fontWeight: 700, color: r.color }}>{r.count}</Typography>
                   </Box>
                   <LinearProgress

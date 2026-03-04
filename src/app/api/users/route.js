@@ -20,8 +20,8 @@ export async function GET(request) {
   let query = supabaseAdmin
     .from('profiles')
     .select(`
-      id, first_name, last_name, email, phone, department,
-      job_title, avatar_url, status, last_login, created_at, updated_at,
+      id, first_name, middle_name, last_name, email, phone, department,
+      job_title, employee_id, avatar_url, status, last_login, created_at, updated_at, role_id,
       roles ( id, name )
     `, { count: 'exact' })
     .eq('is_deleted', false)
@@ -29,7 +29,7 @@ export async function GET(request) {
     .range(offset, offset + limit - 1);
 
   if (search) {
-    query = query.or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%`);
+    query = query.or(`first_name.ilike.%${search}%,middle_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%,employee_id.ilike.%${search}%`);
   }
   if (status && ['active', 'inactive', 'suspended', 'pending'].includes(status)) {
     query = query.eq('status', status);
@@ -52,15 +52,17 @@ export async function POST(request) {
   try { body = await request.json(); }
   catch { return errorResponse('Invalid JSON body', 400); }
 
-  const email      = (body.email || '').trim().toLowerCase();
-  const password   = body.password || '';
-  const first_name = (body.first_name || '').trim().slice(0, 100);
-  const last_name  = (body.last_name  || '').trim().slice(0, 100);
-  const phone      = (body.phone      || '').trim().slice(0, 50);
-  const department = (body.department || '').trim().slice(0, 200);
-  const job_title  = (body.job_title  || '').trim().slice(0, 200);
-  const role_id    = isValidUUID(body.role_id) ? body.role_id : null;
-  const status     = ['active', 'inactive', 'suspended', 'pending'].includes(body.status) ? body.status : 'active';
+  const email       = (body.email || '').trim().toLowerCase();
+  const password    = body.password || '';
+  const first_name  = (body.first_name || '').trim().slice(0, 100);
+  const middle_name = (body.middle_name || '').trim().slice(0, 100) || null;
+  const last_name   = (body.last_name  || '').trim().slice(0, 100);
+  const employee_id = (body.employee_id || '').trim() || null;
+  const phone       = (body.phone      || '').trim().slice(0, 50);
+  const department  = (body.department || '').trim().slice(0, 200);
+  const job_title   = (body.job_title  || '').trim().slice(0, 200);
+  const role_id     = isValidUUID(body.role_id) ? body.role_id : null;
+  const status      = ['active', 'inactive', 'suspended', 'pending'].includes(body.status) ? body.status : 'active';
 
   if (!first_name || !last_name) return errorResponse('First name and last name are required', 400);
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return errorResponse('Valid email address is required', 400);
@@ -70,7 +72,7 @@ export async function POST(request) {
     email,
     password,
     email_confirm: true,
-    user_metadata: { first_name, last_name },
+    user_metadata: { first_name, middle_name, last_name, employee_id },
   });
 
   if (authError) {
@@ -82,7 +84,7 @@ export async function POST(request) {
 
   const { data: profile, error: updateError } = await supabaseAdmin
     .from('profiles')
-    .update({ first_name, last_name, phone, department, job_title, role_id, status, created_by: user.id })
+    .update({ first_name, middle_name, last_name, employee_id, phone, department, job_title, role_id, status, created_by: user.id })
     .eq('id', authData.user.id)
     .select('*, roles(id, name)')
     .single();
@@ -100,7 +102,7 @@ export async function POST(request) {
     module: 'users',
     targetId: authData.user.id,
     targetEmail: email,
-    details: { role_id, department },
+    details: { role_id, department, employee_id, middle_name },
     ipAddress, userAgent,
   });
 

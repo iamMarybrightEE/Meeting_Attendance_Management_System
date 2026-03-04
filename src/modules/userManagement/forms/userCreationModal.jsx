@@ -31,6 +31,8 @@ const userCreationSchema = Yup.object({
   firstName:  Yup.string().min(2, "Too short").required("First name is required"),
   lastName:   Yup.string().min(2, "Too short").required("Last name is required"),
   middleName: Yup.string(),
+  username:   Yup.string(),
+  employeeId: Yup.string().min(3, "Too short").required("Employee ID is required"),
   email:      Yup.string().email("Invalid email").required("Email is required"),
   password:   Yup.string()
     .min(8, "Password must be at least 8 characters")
@@ -111,7 +113,7 @@ export default function UserCreationModal({ open, onClose, onSuccess }) {
 
       <Formik
         initialValues={{
-          firstName: "", middleName: "", lastName: "",
+          firstName: "", middleName: "", lastName: "", username: "", employeeId: "",
           email: "", password: "", roleId: "", contact: "", department: "", job_title: "",
         }}
         validationSchema={userCreationSchema}
@@ -145,7 +147,22 @@ export default function UserCreationModal({ open, onClose, onSuccess }) {
                   value={values.middleName} onChange={handleChange} onBlur={handleBlur}
                   size="small" sx={inputStyle}
                 />
-
+                <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+                  <TextField
+                  fullWidth name="username" label="username " type="username"
+                  value={values.username} onChange={handleChange} onBlur={handleBlur}
+                  error={touched.username && Boolean(errors.username)}
+                  helperText={touched.username && errors.username}
+                  size="small" sx={inputStyle}
+                />
+                  <TextField
+                    fullWidth name="employeeId" label="Employee ID *"
+                    value={values.employeeId} onChange={handleChange} onBlur={handleBlur}
+                    error={touched.employeeId && Boolean(errors.employeeId)}
+                    helperText={touched.employeeId && errors.employeeId}
+                    size="small" sx={inputStyle}
+                  />
+                </Box>
                 <TextField
                   fullWidth name="email" label="Email Address *" type="email"
                   value={values.email} onChange={handleChange} onBlur={handleBlur}
