@@ -38,6 +38,8 @@ import {
   KeyboardArrowDown,
   Shield,
   DoneAll,
+  Groups, 
+  Assessment,
 } from "@mui/icons-material";
 import { useAuth } from "../../../context/AuthContext";
 import { auditLogsApi } from "../../../lib/apiClient";
@@ -49,6 +51,9 @@ const navItems = [
   { icon: <People />, label: "User Management", path: "/user-management" },
   { icon: <AdminPanelSettings />, label: "Roles & Permissions", path: "/roles" },
   { icon: <Assignment />, label: "Audit Logs", path: "/audit-logs" },
+  { icon: <Groups />, label: "Meetings", path: "/meetings" },
+  { icon: <Assessment />, label: "Reports", path: "/reports" },
+  { icon: <Notifications />, label: "Notifications", path: "/notifications" },
 ];
 
 function getRoleColor(role) {
