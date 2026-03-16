@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import Image from "next/image";
 import {
   AppBar,
   Toolbar,
@@ -43,54 +44,110 @@ import {
 } from "@mui/icons-material";
 import { useAuth } from "../../../context/AuthContext";
 import { auditLogsApi } from "../../../lib/apiClient";
+import { isSystemAdmin } from "../../../lib/permissions";
 
 const drawerWidth = 260;
 
-const navItems = [
-  { icon: <Dashboard />, label: "Dashboard", path: "/dashboard" },
-  { icon: <People />, label: "User Management", path: "/user-management" },
-  { icon: <AdminPanelSettings />, label: "Roles & Permissions", path: "/roles" },
-  { icon: <Assignment />, label: "Audit Logs", path: "/audit-logs" },
+// Base navigation items for all users
+const baseNavItems = [
   { icon: <Groups />, label: "Meetings", path: "/meetings" },
-  { icon: <Assessment />, label: "Reports", path: "/reports" },
+  { icon: <Assessment />, label: "Attendance", path: "/attendance" },
   { icon: <Notifications />, label: "Notifications", path: "/notifications" },
 ];
 
-function getRoleColor(role) {
-  switch (role) {
-    case "System Administrator":
-      return { bg: "#c0392b", color: "#fff" };
-    case "Admin":
-      return { bg: "#b7791f", color: "#fff" };
-    case "Chairperson":
-      return { bg: "#2980b9", color: "#fff" };
-    default:
-      return { bg: "#27ae60", color: "#fff" };
+// System Administrator-only navigation items
+const adminNavItems = [
+  { icon: <Dashboard />, label: "System Overview", path: "/dashboard" },
+  { icon: <People />, label: "User Management", path: "/user-management" },
+  { icon: <AdminPanelSettings />, label: "Roles & Permissions", path: "/roles" },
+  { icon: <Assignment />, label: "Audit Logs", path: "/audit-logs" },
+];
+
+// Get nav items based on user role
+function getNavItems(user) {
+  const items = [];
+  if (isSystemAdmin(user)) {
+    items.push(...adminNavItems);
   }
+  items.push(...baseNavItems);
+  return items;
 }
 
+// Get role color for badge styling
+function getRoleColor(role) {
+  const roleColors = {
+    "System Administrator": { bg: "#fee2e2", color: "#dc2626" },
+    "Admin": { bg: "#fef3c7", color: "#d97706" },
+    "Chairperson": { bg: "#dbeafe", color: "#0284c7" },
+    "Staff": { bg: "#dcfce7", color: "#16a34a" },
+  };
+  return roleColors[role] || { bg: "#f3f4f6", color: "#6b7280" };
+}
+
+// Get user initials for avatar
 function getInitials(firstName, lastName) {
-  return `${firstName?.[0] || ""}${lastName?.[0] || ""}`.toUpperCase();
+  const first = firstName ? firstName.charAt(0).toUpperCase() : "";
+  const last = lastName ? lastName.charAt(0).toUpperCase() : "";
+  return (first + last) || "U";
 }
 
+// Get notification color based on action
 function getNotifColor(action) {
-  if (!action) return "#6b7280";
-  if (action.includes("AUTH_FAILED") || action.includes("LOCKED") || action.includes("DELETE")) return "#f74a4d";
-  if (action.includes("AUTH_LOGIN")) return "#018e11";
-  if (action.includes("CREATE")) return "#004497";
-  if (action.includes("SUSPENDED")) return "#FFB236";
-  return "#6b7280";
+  const colorMap = {
+    "created": "#10b981",
+    "updated": "#3b82f6",
+    "deleted": "#ef4444",
+    "approved": "#8b5cf6",
+    "rejected": "#f59e0b",
+  };
+  return colorMap[action] || "#6b7280";
 }
 
+// Get relative time (e.g., "2 hours ago")
 function getRelativeTime(timestamp) {
-  const diff = Date.now() - new Date(timestamp).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  if (!timestamp) return "just now";
+  const date = new Date(timestamp);
+  if (isNaN(date.getTime())) return "recently";
+  const now = new Date();
+  const seconds = Math.floor((now - date) / 1000);
+
+  if (seconds < 0) return "just now";
+  if (seconds < 60) return "just now";
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+  
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+// Get user-friendly description for notifications
+function getUserFriendlyDescription(log, currentUser) {
+  const action = log.action;
+  const details = log.details || {};
+  const meetingTitle = details.title || 'Meeting';
+  
+  switch (action) {
+    case 'created':
+      return `scheduled "${meetingTitle}"`;
+    case 'updated':
+      return `updated "${meetingTitle}"`;
+    case 'deleted':
+      return `cancelled "${meetingTitle}"`;
+    case 'started':
+      return `started "${meetingTitle}"`;
+    case 'ended':
+      return `ended "${meetingTitle}"`;
+    case 'attendance_confirmed':
+      return `confirmed attendance for "${meetingTitle}"`;
+    case 'appeal_submitted':
+      return `submitted an appeal for "${meetingTitle}"`;
+    case 'appeal_approved':
+      return `approved appeal for "${meetingTitle}"`;
+    case 'appeal_rejected':
+      return `rejected appeal for "${meetingTitle}"`;
+    default:
+      return `${action} "${meetingTitle}"`;
+  }
 }
 
 export default function DashboardLayout({ children }) {
@@ -99,7 +156,6 @@ export default function DashboardLayout({ children }) {
   const { currentUser, logout } = useAuth();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
-
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
@@ -118,13 +174,30 @@ export default function DashboardLayout({ children }) {
 
   const unreadCount = notifications.filter((n) => !readIds.has(n.id)).length;
 
-  // Fetch recent audit logs for notifications
+  // Fetch notifications from API
   useEffect(() => {
-    auditLogsApi
-      .list({ limit: 15 })
-      .then((result) => setNotifications(result.logs || []))
-      .catch(() => {});
-  }, []);
+    const fetchNotifications = async () => {
+      try {
+        const token = localStorage.getItem('mams_access_token');
+        if (!token) return;
+
+        const response = await fetch('/api/notifications?limit=10', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (response.ok) {
+          const { notifications: data } = await response.json();
+          setNotifications(data || []);
+        }
+      } catch (err) {
+        console.error('Error fetching notifications:', err);
+      }
+    };
+
+    if (currentUser?.id) {
+      fetchNotifications();
+    }
+  }, [currentUser]);
 
   const markAllRead = () => {
     const newReadIds = new Set([...readIds, ...notifications.map((n) => n.id)]);
@@ -148,9 +221,12 @@ export default function DashboardLayout({ children }) {
   const handleNotifOpen = (e) => setNotifAnchor(e.currentTarget);
   const handleNotifClose = () => setNotifAnchor(null);
 
-  const handleLogout = () => {
-    logout();
-    router.push("/");
+  const handleLogout = async () => {
+    await logout();
+    // Give auth state time to update before redirecting
+    setTimeout(() => {
+      router.push("/");
+    }, 100);
   };
 
   const roleColor = getRoleColor(currentUser?.role);
@@ -189,9 +265,10 @@ export default function DashboardLayout({ children }) {
             justifyContent: "center",
             flexShrink: 0,
             backdropFilter: "blur(8px)",
+            overflow: "hidden",
           }}
         >
-          <Shield sx={{ color: "#fff", fontSize: 22 }} />
+          <Image src="/logo-small.png" alt="Logo" fill />
         </Box>
         {!sidebarCollapsed && (
           <Box sx={{ overflow: "hidden" }}>
@@ -211,7 +288,7 @@ export default function DashboardLayout({ children }) {
               variant="caption"
               sx={{ color: "rgba(255,255,255,0.65)", fontSize: "0.68rem", whiteSpace: "nowrap" }}
             >
-              Admin Portal
+              Meetings
             </Typography>
           </Box>
         )}
@@ -219,7 +296,7 @@ export default function DashboardLayout({ children }) {
 
       {/* Navigation */}
       <List sx={{ px: 1.5, py: 1.5, flex: 1 }}>
-        {navItems.map((item) => {
+        {getNavItems(currentUser).map((item) => {
           const isActive = pathname === item.path || pathname?.startsWith(item.path + "/");
           return (
             <ListItemButton
@@ -429,7 +506,7 @@ export default function DashboardLayout({ children }) {
                 flex: 1,
               }}
             >
-              {navItems.find((n) => pathname === n.path || pathname?.startsWith(n.path + "/"))?.label || "Dashboard"}
+              {getNavItems(currentUser).find((n) => pathname === n.path || pathname?.startsWith(n.path + "/"))?.label || "Dashboard"}
             </Typography>
 
             {/* Notifications */}
@@ -502,6 +579,9 @@ export default function DashboardLayout({ children }) {
                 ) : (
                   notifications.map((notif) => {
                     const isUnread = !readIds.has(notif.id);
+                    const displayTitle = notif.userName ? `${notif.userName} ${notif.description}` : notif.message;
+                    const displayTime = notif.timestamp || notif.created_at;
+                    
                     return (
                       <MenuItem
                         key={notif.id}
@@ -516,18 +596,18 @@ export default function DashboardLayout({ children }) {
                           borderBottom: "1px solid #f3f4f6",
                         }}
                       >
-                        <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: getNotifColor(notif.action), mt: 0.6, flexShrink: 0 }} />
+                        <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: getNotifColor(notif.action || notif.type), mt: 0.6, flexShrink: 0 }} />
                         <Box sx={{ flex: 1, minWidth: 0 }}>
                           <Typography variant="body2" sx={{ fontSize: "0.82rem", color: "#1a1a2e", lineHeight: 1.4, whiteSpace: "normal" }}>
-                            <strong>{notif.userName}</strong> {notif.description}
+                            {displayTitle}
                           </Typography>
                           <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.5 }}>
                             <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>
-                              {getRelativeTime(notif.timestamp)}
+                              {getRelativeTime(new Date(displayTime))}
                             </Typography>
-                            {notif.module && (
+                            {(notif.module || notif.type) && (
                               <Chip
-                                label={notif.module}
+                                label={notif.module || notif.type}
                                 size="small"
                                 sx={{ height: 16, fontSize: "0.6rem", bgcolor: "#f3f4f6", color: "#6b7280", borderRadius: "4px" }}
                               />
@@ -611,10 +691,6 @@ export default function DashboardLayout({ children }) {
               <MenuItem onClick={() => { router.push(`/user-profile/${currentUser?.id}`); handleProfileMenuClose(); }} sx={{ gap: 1.5, py: 1.2 }}>
                 <AccountCircle fontSize="small" sx={{ color: "#004497" }} />
                 <Typography variant="body2">My Profile</Typography>
-              </MenuItem>
-              <MenuItem onClick={handleProfileMenuClose} sx={{ gap: 1.5, py: 1.2 }}>
-                <Settings fontSize="small" sx={{ color: "#004497" }} />
-                <Typography variant="body2">Settings</Typography>
               </MenuItem>
               <Divider />
               <MenuItem onClick={handleLogout} sx={{ gap: 1.5, py: 1.2, color: "#f74a4d" }}>

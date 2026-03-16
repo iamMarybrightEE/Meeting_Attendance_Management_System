@@ -21,7 +21,6 @@ import {
   CircularProgress,
 } from "@mui/material";
 import { Close, Warning } from "@mui/icons-material";
-import { APPEAL_STATUS } from "../../../data/dummyData";
 import { useAuth } from "../../../context/AuthContext";
 
 const appealSchema = Yup.object({
@@ -38,18 +37,30 @@ const inputStyle = {
   "& .MuiInputLabel-root.Mui-focused": { color: "#004497" },
 };
 
-export default function AppealReviewModal({ open, appeal, onClose, onSuccess }) {
+export default function AppealReviewModal({ open, appeal, meetingId, onClose, onSuccess }) {
   const { currentUser } = useAuth();
   const [apiError, setApiError] = useState("");
 
   const handleSubmit = async (values, { setSubmitting }) => {
     setApiError("");
     try {
-      console.log("Reviewing appeal:", {
-        appealId: appeal?.id,
-        ...values,
-        reviewedBy: currentUser?.id
+      const response = await fetch(`/api/meetings/${meetingId}/appeals/${appeal?.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('mams_access_token')}`,
+        },
+        body: JSON.stringify({
+          status: values.decision,
+          review_notes: values.comment || null,
+        }),
       });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to review appeal');
+      }
+
       onSuccess?.();
       onClose();
     } catch (err) {
@@ -107,7 +118,7 @@ export default function AppealReviewModal({ open, appeal, onClose, onSuccess }) 
 
       <Formik
         initialValues={{
-          decision: APPEAL_STATUS.VALIDATED,
+          decision: "pending",
           comment: "",
         }}
         validationSchema={appealSchema}
@@ -125,30 +136,25 @@ export default function AppealReviewModal({ open, appeal, onClose, onSuccess }) 
               {/* Appeal Info */}
               <Box sx={{ bgcolor: "#f8f9fa", p: 2, borderRadius: 2, mb: 3 }}>
                 <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                  Meeting: {appeal.meetingTitle}
+                  Employee: {appeal.profiles?.first_name} {appeal.profiles?.last_name}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Employee: {appeal.userName}
+                  Reason: {appeal.reason.substring(0, 100)}{appeal.reason.length > 100 ? '...' : ''}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  Submitted: {new Date(appeal.submittedAt).toLocaleString()}
+                  Submitted: {new Date(appeal.created_at).toLocaleString()}
                 </Typography>
               </Box>
 
-              {/* Reason */}
+              {/* Full Reason */}
               <Box sx={{ mb: 3 }}>
                 <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                  Reason for Absence:
+                  Full Reason for Absence:
                 </Typography>
-                <Box sx={{ bgcolor: "#fff", p: 2, borderRadius: 2, border: "1px solid #e0e0e0" }}>
+                <Box sx={{ bgcolor: "#fff", p: 2, borderRadius: 2, border: "1px solid #e0e0e0", maxHeight: 120, overflowY: 'auto' }}>
                   <Typography variant="body2">
                     {appeal.reason}
                   </Typography>
-                  {appeal.attachment && (
-                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
-                      Attachment: {appeal.attachment}
-                    </Typography>
-                  )}
                 </Box>
               </Box>
 
@@ -163,8 +169,8 @@ export default function AppealReviewModal({ open, appeal, onClose, onSuccess }) 
                     onChange={handleChange}
                     onBlur={handleBlur}
                   >
-                    <MenuItem value={APPEAL_STATUS.VALIDATED}>Validate (Excused)</MenuItem>
-                    <MenuItem value={APPEAL_STATUS.INVALIDATED}>Invalidate (Not Excused)</MenuItem>
+                    <MenuItem value="approved">Approve (Excused)</MenuItem>
+                    <MenuItem value="rejected">Reject (Not Excused)</MenuItem>
                   </Select>
                 </FormControl>
 

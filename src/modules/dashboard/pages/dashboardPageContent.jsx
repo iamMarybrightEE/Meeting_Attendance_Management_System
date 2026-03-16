@@ -8,7 +8,6 @@ import {
   Paper,
   Chip,
   Button,
-  Avatar,
   LinearProgress,
 } from "@mui/material";
 import {
@@ -181,7 +180,10 @@ export default function DashboardPageContent() {
                   </Typography>
                   <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
                     <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>
-                      {new Date(log.timestamp).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      {log.timestamp ? (() => {
+                        const date = new Date(log.timestamp);
+                        return isNaN(date.getTime()) ? "Recently" : date.toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+                      })() : "Recently"}
                     </Typography>
                     <Chip
                       label={log.action.replace(/_/g, " ")}

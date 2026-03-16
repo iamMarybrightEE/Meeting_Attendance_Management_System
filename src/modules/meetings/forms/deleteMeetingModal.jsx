@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -9,8 +10,10 @@ import {
   Button,
   Divider,
   IconButton,
+  Alert,
 } from "@mui/material";
 import { Delete, Close } from "@mui/icons-material";
+import { useAuth } from "../../../context/AuthContext";
 
 export default function DeleteMeetingModal({
   open,
@@ -18,6 +21,32 @@ export default function DeleteMeetingModal({
   selectedMeeting,
   onSubmit,
 }) {
+  const [apiError, setApiError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleDelete = async () => {
+    setApiError("");
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/meetings/${selectedMeeting?.id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('mams_access_token')}` },
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to delete meeting');
+      }
+
+      onSubmit?.();
+      onClose();
+    } catch (err) {
+      setApiError(err.message || "Failed to delete meeting. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Dialog
       open={open}
@@ -58,6 +87,7 @@ export default function DeleteMeetingModal({
         </IconButton>
       </Box>
       <DialogContent sx={{ pt: 3 }}>
+        {apiError && <Alert severity="error" sx={{ mb: 2 }}>{apiError}</Alert>}
         <Typography>
           Are you sure you want to delete <strong>{selectedMeeting?.title}</strong>?
           This action cannot be undone.
@@ -67,6 +97,7 @@ export default function DeleteMeetingModal({
       <DialogActions sx={{ px: 3, py: 2, gap: 1 }}>
         <Button
           onClick={onClose}
+          disabled={loading}
           variant="outlined"
           sx={{
             borderRadius: 2,
@@ -80,7 +111,8 @@ export default function DeleteMeetingModal({
         </Button>
         <Button
           variant="contained"
-          onClick={onSubmit}
+          onClick={handleDelete}
+          disabled={loading}
           sx={{
             borderRadius: 2,
             background: "linear-gradient(135deg, #f74a4d 0%, #d32f2f 100%)",
@@ -92,7 +124,7 @@ export default function DeleteMeetingModal({
             },
           }}
         >
-          Delete
+          {loading ? "Deleting..." : "Delete"}
         </Button>
       </DialogActions>
     </Dialog>

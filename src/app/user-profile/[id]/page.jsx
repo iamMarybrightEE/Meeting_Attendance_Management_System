@@ -1,15 +1,15 @@
+"use client";
+
 import DashboardLayout from "../../../modules/dashboard/layout/dashboardLayout";
 import UserProfilePage from "../../../modules/userManagement/pages/userProfilePage";
-import { USERS } from "../../../data/dummyData";
-
-export function generateStaticParams() {
-  return USERS.map((user) => ({ id: user.id }));
-}
+import { ProtectedRoute } from "../../../lib/protectedRoute";
 
 export default function UserProfile() {
   return (
-    <DashboardLayout>
-      <UserProfilePage />
-    </DashboardLayout>
+    <ProtectedRoute>
+      <DashboardLayout>
+        <UserProfilePage />
+      </DashboardLayout>
+    </ProtectedRoute>
   );
 }

@@ -19,10 +19,13 @@ import {
   IconButton,
   Alert,
   CircularProgress,
+  Chip,
+  Autocomplete,
 } from "@mui/material";
-import { Event, Close } from "@mui/icons-material";
+import { Event, Close, CalendarToday, AccessTime } from "@mui/icons-material";
 import { useAuth } from "../../../context/AuthContext";
-import { MEETING_CATEGORIES, MEETING_TYPES } from "../../../data/dummyData";
+import { isSystemAdmin, isAdmin, isChairperson } from "../../../lib/permissions";
+
 
 const meetingSchema = Yup.object({
   title: Yup.string()
@@ -45,13 +48,15 @@ const meetingSchema = Yup.object({
   category: Yup.string()
     .required("Category is required"),
   chairpersonId: Yup.string()
+    .uuid("Invalid chairperson")
     .required("Chairperson is required"),
   attendeeIds: Yup.array()
-    .of(Yup.string())
-    .min(1, "At least one attendee is required")
-    .required("Attendees are required"),
+    .of(Yup.string().uuid())
+    .min(1, "At least one attendee is required"),
   description: Yup.string(),
-  externalLink: Yup.string().url("Must be a valid URL"),
+  externalLink: Yup.string()
+    .url("Invalid URL")
+    .nullable(),
 });
 
 const inputStyle = {
@@ -68,13 +73,72 @@ export default function ScheduleMeetingModal({
   onClose,
   onSuccess,
 }) {
-  const { users } = useAuth();
+  const { users, currentUser } = useAuth();
   const [apiError, setApiError] = useState("");
+
+  // Check if user is staff (not admin or system admin or chairperson)
+  const isStaff = !isSystemAdmin(currentUser) && !isAdmin(currentUser) && !isChairperson(currentUser);
+  
+  // Create dynamic schema based on user role
+  const dynamicSchema = Yup.object({
+    title: Yup.string()
+      .min(3, "Title too short")
+      .required("Meeting title is required"),
+    date: Yup.string()
+      .required("Date is required"),
+    startTime: Yup.string()
+      .required("Start time is required"),
+    endTime: Yup.string()
+      .required("End time is required"),
+    duration: Yup.number()
+      .positive("Duration must be positive")
+      .required("Duration is required"),
+    location: Yup.string()
+      .min(2, "Location too short")
+      .required("Location is required"),
+    type: Yup.string()
+      .required("Meeting type is required"),
+    category: Yup.string()
+      .required("Category is required"),
+    chairpersonId: isStaff ? Yup.string() : Yup.string()
+      .uuid("Invalid chairperson")
+      .required("Chairperson is required"),
+    attendeeIds: Yup.array()
+      .of(Yup.string().uuid())
+      .min(1, "At least one attendee is required"),
+    description: Yup.string(),
+    externalLink: Yup.string()
+      .url("Invalid URL")
+      .nullable(),
+  });
 
   const handleSubmit = async (values, { setSubmitting, resetForm }) => {
     setApiError("");
     try {
-      console.log("Creating meeting:", values);
+      const response = await fetch('/api/meetings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('mams_access_token')}` },
+        body: JSON.stringify({
+          title: values.title,
+          description: values.description || null,
+          date: values.date,
+          start_time: values.startTime,
+          end_time: values.endTime,
+          duration: values.duration,
+          type: values.type,
+          category: values.category,
+          location: values.location,
+          chairperson_id: values.chairpersonId,
+          attendee_ids: values.attendeeIds,
+          external_link: values.externalLink || null,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to schedule meeting');
+      }
+
       resetForm();
       onSuccess?.();
       onClose();
@@ -137,14 +201,14 @@ export default function ScheduleMeetingModal({
           endTime: "",
           duration: "",
           location: "",
-          type: MEETING_TYPES.MANAGEMENT,
-          category: MEETING_CATEGORIES.INTERNAL,
-          chairpersonId: "",
+          type: "management",
+          category: "internal",
+          chairpersonId: isStaff ? currentUser?.id : "",
           attendeeIds: [],
           description: "",
           externalLink: "",
         }}
-        validationSchema={meetingSchema}
+        validationSchema={dynamicSchema}
         onSubmit={handleSubmit}
       >
         {({ values, errors, touched, handleChange, handleBlur, isSubmitting }) => (
@@ -181,6 +245,9 @@ export default function ScheduleMeetingModal({
                     error={touched.date && Boolean(errors.date)}
                     helperText={touched.date && errors.date}
                     InputLabelProps={{ shrink: true }}
+                    InputProps={{
+                      startAdornment: <CalendarToday sx={{ mr: 1, fontSize: 18, color: "#004497" }} />
+                    }}
                     sx={inputStyle}
                   />
                   <TextField
@@ -209,6 +276,9 @@ export default function ScheduleMeetingModal({
                     error={touched.startTime && Boolean(errors.startTime)}
                     helperText={touched.startTime && errors.startTime}
                     InputLabelProps={{ shrink: true }}
+                    InputProps={{
+                      startAdornment: <AccessTime sx={{ mr: 1, fontSize: 18, color: "#004497" }} />
+                    }}
                     sx={inputStyle}
                   />
                   <TextField
@@ -223,23 +293,12 @@ export default function ScheduleMeetingModal({
                     error={touched.endTime && Boolean(errors.endTime)}
                     helperText={touched.endTime && errors.endTime}
                     InputLabelProps={{ shrink: true }}
+                    InputProps={{
+                      startAdornment: <AccessTime sx={{ mr: 1, fontSize: 18, color: "#004497" }} />
+                    }}
                     sx={inputStyle}
                   />
                 </Box>
-                <TextField
-                  fullWidth
-                  size="small"
-                  name="duration"
-                  label="Duration (minutes) *"
-                  type="number"
-                  inputProps={{ min: "1" }}
-                  value={values.duration}
-                  onChange={handleChange}
-                  onBlur={handleBlur}
-                  error={touched.duration && Boolean(errors.duration)}
-                  helperText={touched.duration && errors.duration}
-                  sx={inputStyle}
-                />
                 <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
                   <FormControl fullWidth size="small" sx={inputStyle} error={touched.type && Boolean(errors.type)}>
                     <InputLabel>Meeting Type *</InputLabel>
@@ -250,8 +309,8 @@ export default function ScheduleMeetingModal({
                       onChange={handleChange}
                       onBlur={handleBlur}
                     >
-                      <MenuItem value={MEETING_TYPES.MANAGEMENT}>Management</MenuItem>
-                      <MenuItem value={MEETING_TYPES.TEAM}>Team</MenuItem>
+                      <MenuItem value="management">Management</MenuItem>
+                      <MenuItem value="team">Team</MenuItem>
                     </Select>
                   </FormControl>
                   <FormControl fullWidth size="small" sx={inputStyle} error={touched.category && Boolean(errors.category)}>
@@ -263,61 +322,82 @@ export default function ScheduleMeetingModal({
                       onChange={handleChange}
                       onBlur={handleBlur}
                     >
-                      <MenuItem value={MEETING_CATEGORIES.INTERNAL}>Internal</MenuItem>
-                      <MenuItem value={MEETING_CATEGORIES.EXTERNAL}>External</MenuItem>
+                      <MenuItem value="internal">Internal</MenuItem>
+                      <MenuItem value="external">External</MenuItem>
                     </Select>
                   </FormControl>
                 </Box>
-                <FormControl 
-                  fullWidth 
-                  size="small" 
-                  sx={inputStyle} 
-                  error={touched.chairpersonId && Boolean(errors.chairpersonId)}
-                >
-                  <InputLabel>Chairperson *</InputLabel>
-                  <Select
-                    name="chairpersonId"
-                    value={values.chairpersonId}
-                    label="Chairperson *"
+                <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    name="duration"
+                    label="Duration (minutes) *"
+                    type="number"
+                    value={values.duration}
                     onChange={handleChange}
                     onBlur={handleBlur}
-                  >
-                    {users
-                      .filter(
-                        (u) =>
-                          u.role === "Chairperson" ||
-                          u.role === "Admin" ||
-                          u.role === "System Administrator"
-                      )
-                      .map((u) => (
-                        <MenuItem key={u.id} value={u.id}>
-                          {u.firstName} {u.lastName}
-                        </MenuItem>
-                      ))}
-                  </Select>
-                </FormControl>
-                <FormControl 
-                  fullWidth 
-                  size="small" 
-                  sx={inputStyle} 
-                  error={touched.attendeeIds && Boolean(errors.attendeeIds)}
-                >
-                  <InputLabel>Attendees *</InputLabel>
-                  <Select
-                    name="attendeeIds"
-                    multiple
-                    value={values.attendeeIds}
-                    label="Attendees *"
-                    onChange={handleChange}
-                    onBlur={handleBlur}
-                  >
-                    {users.map((u) => (
-                      <MenuItem key={u.id} value={u.id}>
-                        {u.firstName} {u.lastName}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
+                    error={touched.duration && Boolean(errors.duration)}
+                    helperText={touched.duration && errors.duration}
+                    sx={inputStyle}
+                    inputProps={{ min: 1 }}
+                  />
+                  <Autocomplete
+                    options={users || []}
+                    getOptionLabel={(option) => `${option.firstName || ''} ${option.lastName || ''} (${option.email})`.trim()}
+                    value={users?.find(u => u.id === values.chairpersonId) || null}
+                    onChange={(event, newValue) => {
+                      handleChange({ target: { name: 'chairpersonId', value: newValue?.id || '' } });
+                    }}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label={isStaff ? "Chairperson (Auto-assigned as organizer)" : "Chairperson *"}
+                        error={touched.chairpersonId && Boolean(errors.chairpersonId)}
+                        helperText={isStaff ? "You are automatically the chairperson" : (touched.chairpersonId && errors.chairpersonId)}
+                        sx={inputStyle}
+                        size="small"
+                        disabled={isStaff}
+                      />
+                    )}
+                    sx={inputStyle}
+                    disabled={isStaff}
+                  />
+                </Box>
+                <Autocomplete
+                  multiple
+                  options={users || []}
+                  getOptionLabel={(option) => `${option.firstName || ''} ${option.lastName || ''} (${option.email})`.trim()}
+                  value={values.attendeeIds.map(id => users?.find(u => u.id === id)).filter(Boolean)}
+                  onChange={(event, newValue) => {
+                    const newIds = newValue.map(user => user.id);
+                    handleChange({ target: { name: 'attendeeIds', value: newIds } });
+                  }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Attendees *"
+                      error={touched.attendeeIds && Boolean(errors.attendeeIds)}
+                      helperText={touched.attendeeIds && errors.attendeeIds}
+                      sx={inputStyle}
+                      size="small"
+                    />
+                  )}
+                  renderTags={(value, getTagProps) =>
+                    value.map((option, index) => {
+                      const { key, ...chipProps } = getTagProps({ index });
+                      return (
+                        <Chip
+                          key={key}
+                          label={`${option.firstName || ''} ${option.lastName || ''}`.trim()}
+                          {...chipProps}
+                          size="small"
+                        />
+                      );
+                    })
+                  }
+                  sx={inputStyle}
+                />
                 <TextField
                   fullWidth
                   size="small"
@@ -332,6 +412,7 @@ export default function ScheduleMeetingModal({
                   helperText={touched.externalLink && errors.externalLink}
                   sx={inputStyle}
                 />
+
                 <TextField
                   fullWidth
                   size="small"

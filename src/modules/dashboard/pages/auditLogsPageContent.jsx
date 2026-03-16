@@ -209,20 +209,20 @@ export default function AuditLogsPageContent() {
                     sx={{ borderRadius: 2, textTransform: "none", borderColor: "#d0d5dd", color: "#555", "&:hover": { borderColor: "#004497", color: "#004497" } }}
                   >
                     Export
-                  </Button>
-                  <MuiMenu
-                    anchorEl={exportAnchor}
-                    open={Boolean(exportAnchor)}
-                    onClose={() => setExportAnchor(null)}
-                    PaperProps={{ sx: { borderRadius: 2, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", minWidth: 160 } }}
-                  >
-                    <MuiMenuItem onClick={exportCSV} sx={{ gap: 1.5, fontSize: "0.85rem" }}>
-                      <TableChart sx={{ fontSize: 18, color: "#018e11" }} /> Export CSV
-                    </MuiMenuItem>
-                    <MuiMenuItem onClick={exportPDF} sx={{ gap: 1.5, fontSize: "0.85rem" }}>
-                      <PictureAsPdf sx={{ fontSize: 18, color: "#f74a4d" }} /> Export PDF
-                    </MuiMenuItem>
-                  </MuiMenu>
+        </Button>
+        <MuiMenu
+          anchorEl={exportAnchor}
+          open={Boolean(exportAnchor)}
+          onClose={() => setExportAnchor(null)}
+          PaperProps={{ sx: { borderRadius: 2, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", minWidth: 160 } }}
+        >
+          <MuiMenuItem onClick={exportCSV} sx={{ gap: 1.5, fontSize: "0.85rem" }}>
+            <TableChart sx={{ fontSize: 18, color: "#018e11" }} /> Export CSV
+          </MuiMenuItem>
+          <MuiMenuItem onClick={exportPDF} sx={{ gap: 1.5, fontSize: "0.85rem" }}>
+            <PictureAsPdf sx={{ fontSize: 18, color: "#f74a4d" }} /> Export PDF
+          </MuiMenuItem>
+        </MuiMenu>
       </Box>
 
       <Paper elevation={0} sx={{ borderRadius: 3, border: "1px solid #e8edf3", overflow: "hidden" }}>

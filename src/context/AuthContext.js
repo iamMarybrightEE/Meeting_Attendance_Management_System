@@ -75,7 +75,15 @@ export function AuthProvider({ children }) {
   }, [fetchUsers, fetchRoles]);
 
   const logout = useCallback(async () => {
-    try { await authApi.logout(); } catch {}
+    // Call logout endpoint but don't fail if it errors
+    try { 
+      await authApi.logout(); 
+    } catch (err) {
+      // Silently ignore logout endpoint errors
+      console.debug('Logout API error (ignored):', err.message);
+    }
+    
+    // Always clear session locally regardless of API response
     clearSession();
     setCurrentUser(null);
     setIsAuthenticated(false);

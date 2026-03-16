@@ -1,6 +1,4 @@
-"use client";
-
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Box,
@@ -27,6 +25,12 @@ import {
   Pagination,
   Snackbar,
   Alert,
+  CircularProgress,
+  Card,
+  CardContent,
+  CardActions,
+  Grid,
+  Skeleton,
 } from "@mui/material";
 import {
   Search,
@@ -45,15 +49,11 @@ import {
   ExpandMore,
   TableChart,
   PictureAsPdf,
+  Groups,
 } from "@mui/icons-material";
 import { Menu as MuiMenu, MenuItem as MuiMenuItem } from "@mui/material";
 import { useAuth } from "../../../context/AuthContext";
-import { 
-  MEETINGS, 
-  MEETING_CATEGORIES, 
-  MEETING_TYPES, 
-  MEETING_STATUS 
-} from "../../../data/dummyData";
+import { getUserChairedMeetings, isSystemAdmin } from "../../../lib/permissions";
 import ScheduleMeetingModal from "../forms/scheduleMeetingModal";
 import EditMeetingModal from "../forms/editMeetingModal";
 import DeleteMeetingModal from "../forms/deleteMeetingModal";
@@ -63,12 +63,16 @@ const ROWS_PER_PAGE = 8;
 export default function MeetingsPageContent() {
   const router = useRouter();
   const { users, currentUser } = useAuth();
+  const [meetings, setMeetings] = useState([]);
   const [tab, setTab] = useState(0);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [typeFilter, setTypeFilter] = useState("All");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [locationFilter, setLocationFilter] = useState("");
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: "",
@@ -79,31 +83,110 @@ export default function MeetingsPageContent() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [selectedMeeting, setSelectedMeeting] = useState(null);
   const [exportAnchor, setExportAnchor] = useState(null);
+  const canManage = currentUser?.role === "System Administrator" || currentUser?.role === "Admin" || currentUser?.role === "Chairperson";
+  const isAdminUser = isSystemAdmin(currentUser);
+
+  // Extract unique categories and types from meetings data
+  const categories = useMemo(() => {
+    const cats = [...new Set(meetings.map(m => m.category).filter(Boolean))];
+    return ["All", ...cats];
+  }, [meetings]);
+
+  const types = useMemo(() => {
+    const typs = [...new Set(meetings.map(m => m.type).filter(Boolean))];
+    return ["All", ...typs];
+  }, [meetings]);
+
+  useEffect(() => {
+    fetchMeetings();
+  }, []);
+
+  const fetchMeetings = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('mams_access_token');
+      
+      if (!token) {
+        throw new Error('No authentication token found. Please log in again.');
+      }
+
+      const response = await fetch('/api/meetings', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || `Failed to fetch meetings (${response.status})`);
+      }
+      
+      setMeetings(data.meetings || []);
+      
+      if (data.meetings?.length === 0) {
+        console.warn('No meetings returned from API');
+      }
+    } catch (err) {
+      console.error('Fetch meetings error:', err);
+      setSnackbar({ 
+        open: true, 
+        message: err.message || 'Failed to fetch meetings', 
+        severity: "error" 
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredMeetings = useMemo(() => {
     const today = new Date().toISOString().split("T")[0];
-    let meetings = [...MEETINGS];
-    if (tab === 0) meetings = meetings;
-    else if (tab === 1) meetings = meetings.filter(m => m.status === MEETING_STATUS.ONGOING);
-    else if (tab === 1) meetings = meetings.filter(m => m.status === MEETING_STATUS.SCHEDULED && m.date >= today);
-    else meetings = meetings.filter(m => m.status === MEETING_STATUS.COMPLETED);
+    let filtered = [...meetings];
+    
+    if (tab === 0) filtered = filtered; // All
+    else if (tab === 1) filtered = filtered.filter(m => m.status === 'ongoing');
+    else if (tab === 2) {
+      // Upcoming: only scheduled meetings with date >= today
+      filtered = filtered.filter(m => m.status === 'scheduled' && m.date >= today);
+    }
+    else if (tab === 3) filtered = filtered.filter(m => m.status === 'ended');
+    else if (tab === 4) {
+      // My Chaired Meetings
+      filtered = getUserChairedMeetings(filtered, currentUser?.id);
+    }
+    
     if (search) {
       const q = search.toLowerCase();
-      meetings = meetings.filter(m => m.title.toLowerCase().includes(q) || m.location.toLowerCase().includes(q) || m.chairpersonName.toLowerCase().includes(q));
+      filtered = filtered.filter(m => 
+        m.title.toLowerCase().includes(q) || 
+        (m.location && m.location.toLowerCase().includes(q)) ||
+        (m.organizer_id?.first_name && m.organizer_id.first_name.toLowerCase().includes(q)) ||
+        (m.organizer_id?.last_name && m.organizer_id.last_name.toLowerCase().includes(q))
+      );
     }
-    if (categoryFilter !== "All") meetings = meetings.filter(m => m.category === categoryFilter);
-    if (typeFilter !== "All") meetings = meetings.filter(m => m.type === typeFilter);
-    return meetings;
-  }, [tab, search, categoryFilter, typeFilter]);
+    
+    if (categoryFilter !== "All") filtered = filtered.filter(m => m.category === categoryFilter);
+    if (typeFilter !== "All") filtered = filtered.filter(m => m.type === typeFilter);
+    if (dateFrom) filtered = filtered.filter(m => m.date >= dateFrom);
+    if (dateTo) filtered = filtered.filter(m => m.date <= dateTo);
+    if (locationFilter) {
+      const loc = locationFilter.toLowerCase();
+      filtered = filtered.filter(m => m.location && m.location.toLowerCase().includes(loc));
+    }
+    
+    return filtered;
+  }, [tab, search, categoryFilter, typeFilter, dateFrom, dateTo, locationFilter, meetings, currentUser?.id]);
 
   const totalPages = Math.ceil(filteredMeetings.length / ROWS_PER_PAGE);
   const paginatedMeetings = filteredMeetings.slice((page - 1) * ROWS_PER_PAGE, page * ROWS_PER_PAGE);
 
-  const ongoingCount = MEETINGS.filter(m => m.status === MEETING_STATUS.ONGOING).length;
-  const upcomingCount = MEETINGS.filter(m => m.status === MEETING_STATUS.SCHEDULED).length;
-  const completedCount = MEETINGS.filter(m => m.status === MEETING_STATUS.COMPLETED).length;
-
-  const canManage = currentUser?.role === "System Administrator" || currentUser?.role === "Admin" || currentUser?.role === "Chairperson";
+  const getStatusChip = (status) => {
+    const statusConfig = {
+      scheduled: { label: 'Scheduled', color: 'info' },
+      ongoing: { label: 'Ongoing', color: 'success' },
+      ended: { label: 'Ended', color: 'default' },
+      cancelled: { label: 'Cancelled', color: 'error' },
+    };
+    return statusConfig[status] || { label: status, color: 'default' };
+  };
 
   const handleViewDetails = (meeting) => router.push(`/meetings/${meeting.id}`);
   
@@ -118,26 +201,24 @@ export default function MeetingsPageContent() {
   };
 
   const handleRefresh = () => {
-    setLoading(true);
-    setTimeout(() => setLoading(false), 800);
+    fetchMeetings();
   };
+
   const handleCreateSuccess = () => {
+    fetchMeetings();
     setSnackbar({ open: true, message: "Meeting scheduled successfully!", severity: "success" });
   };
+
   const handleEditSuccess = () => {
-    setSnackbar({
-      open: true,
-      message: "Meeting updated successfully!",
-      severity: "success",
-    });
+    fetchMeetings();
+    setEditModalOpen(false);
+    setSnackbar({ open: true, message: "Meeting updated successfully!", severity: "success" });
   };
+
   const handleDeleteSuccess = () => {
+    fetchMeetings();
     setDeleteModalOpen(false);
-    setSnackbar({
-      open: true,
-      message: "Meeting deleted successfully!",
-      severity: "success",
-    });
+    setSnackbar({ open: true, message: "Meeting deleted successfully!", severity: "success" });
   };
 
   const exportCSV = () => {
@@ -156,10 +237,10 @@ export default function MeetingsPageContent() {
       m.id || "",
       m.title || "",
       m.date || "",
-      `${m.startTime || ""} - ${m.endTime || ""}`,
+      `${m.start_time || ""} - ${m.end_time || ""}`,
       m.type || "",
       m.category || "",
-      m.chairpersonName || "",
+      m.organizer_id ? `${m.organizer_id.first_name} ${m.organizer_id.last_name}` : "",
       m.location || "",
       m.status || "",
     ]);
@@ -185,10 +266,10 @@ export default function MeetingsPageContent() {
         <td>${m.id || "—"}</td>
         <td>${m.title || "—"}</td>
         <td>${m.date || "—"}</td>
-        <td>${m.startTime || "—"} - ${m.endTime || "—"}</td>
+        <td>${m.start_time || "—"} - ${m.end_time || "—"}</td>
         <td>${m.type || "—"}</td>
         <td>${m.category || "—"}</td>
-        <td>${m.chairpersonName || "—"}</td>
+        <td>${m.organizer_id ? `${m.organizer_id.first_name} ${m.organizer_id.last_name}` : "—"}</td>
         <td>${m.location || "—"}</td>
         <td>${m.status || "—"}</td>
       </tr>
@@ -265,16 +346,47 @@ export default function MeetingsPageContent() {
               <PictureAsPdf sx={{ fontSize: 18, color: "#f74a4d" }} /> Export PDF
             </MuiMenuItem>
           </MuiMenu>
-          {canManage && <Button startIcon={<Add />} variant="contained" onClick={() => setCreateModalOpen(true)} sx={{ borderRadius: 2, textTransform: "none", fontWeight: 600, background: "linear-gradient(135deg, #004497 0%, #1c56a3 100%)", boxShadow: "0 4px 12px rgba(0,68,151,0.3)", "&:hover": { background: "linear-gradient(135deg, #003380, #1549a0)", transform: "translateY(-1px)" } }}>Schedule Meeting</Button>}
+          <Button
+            startIcon={<Visibility />}
+            variant="outlined"
+            onClick={() => router.push("/attendance")}
+            sx={{
+              borderRadius: 2,
+              textTransform: "none",
+              fontWeight: 600,
+              border: "2px solid transparent",
+              background:
+                "linear-gradient(transparent, transparent) padding-box, linear-gradient(135deg, #004497 0%, #1c56a3 100%) border-box",
+              backgroundClip: "padding-box, border-box",
+
+              // gradient text
+              backgroundImage: "linear-gradient(135deg, #004497 0%, #1c56a3 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+
+              boxShadow: "0 4px 12px rgba(0,68,151,0.3)",
+
+              "&:hover": {
+                transform: "translateY(-1px)",
+                background:
+                  "linear-gradient(135deg, #003380, #1549a0) padding-box, linear-gradient(135deg, #003380, #1549a0) border-box",
+                WebkitTextFillColor: "#fff",
+                color: "#fff",
+              },
+            }}
+          >
+            View Attendance
+          </Button>
+          <Button startIcon={<Add />} variant="contained" onClick={() => setCreateModalOpen(true)} sx={{ borderRadius: 2, textTransform: "none", fontWeight: 600, background: "linear-gradient(135deg, #004497 0%, #1c56a3 100%)", boxShadow: "0 4px 12px rgba(0,68,151,0.3)", "&:hover": { background: "linear-gradient(135deg, #003380, #1549a0)", transform: "translateY(-1px)" } }}>Schedule Meeting</Button>
         </Box>
       </Box>
-
+      {/* meeting cards */}
       <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 2, mb: 3 }}>
         {[
-        { label: "Total", value: MEETINGS.length, color: "#004497", bg: "#f0f4ff" },
-        { label: "Ongoing", value: ongoingCount, color: "#2e7d32", bg: "#e8f5e9" },
-        { label: "Upcoming", value: upcomingCount, color: "#0b6cc2", bg: "#e3f2fd" },
-        { label: "Completed", value: completedCount, color: "#4b4c4d", bg: "#f3f4f6" }
+        { label: "Total", value: meetings.length, color: "#004497", bg: "#f0f4ff" },
+        { label: "Ongoing", value: meetings.filter(m => m.status === 'ongoing').length, color: "#2e7d32", bg: "#e8f5e9" },
+        { label: "Upcoming", value: meetings.filter(m => m.status === 'scheduled').length, color: "#0b6cc2", bg: "#e3f2fd" },
+        { label: "Completed", value: meetings.filter(m => m.status === 'ended').length, color: "#4b4c4d", bg: "#f3f4f6" }
         ].map((stat) => (
           <Paper key={stat.label} elevation={0} sx={{ p: 2, borderRadius: 2.5, bgcolor: stat.bg, border: `1px solid ${stat.color}22`, "&:hover": { transform: "translateY(-2px)", boxShadow: "0 4px 16px rgba(0,0,0,0.08)" } }}>
             <Typography variant="h4" sx={{ fontWeight: 700, color: stat.color, lineHeight: 1 }}>{stat.value}</Typography>
@@ -326,13 +438,11 @@ export default function MeetingsPageContent() {
                   bgcolor: "#f9fafb",
                 }}
               >
-                <MenuItem value="All">All</MenuItem>
-                <MenuItem value={MEETING_CATEGORIES.INTERNAL}>
-                  Internal
-                </MenuItem>
-                <MenuItem value={MEETING_CATEGORIES.EXTERNAL}>
-                  External
-                </MenuItem>
+                {categories.map((category) => (
+                  <MenuItem key={category} value={category}>
+                    {category}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
             <FormControl size="small" sx={{ minWidth: 120 }}>
@@ -350,13 +460,65 @@ export default function MeetingsPageContent() {
                   bgcolor: "#f9fafb",
                 }}
               >
-                <MenuItem value="All">All</MenuItem>
-                <MenuItem value={MEETING_TYPES.MANAGEMENT}>
-                  Management
-                </MenuItem>
-                <MenuItem value={MEETING_TYPES.TEAM}>Team</MenuItem>
+                {types.map((type) => (
+                  <MenuItem key={type} value={type}>
+                    {type}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
+            <TextField
+              size="small"
+              type="date"
+              label="Date From"
+              value={dateFrom}
+              onChange={(e) => {
+                setDateFrom(e.target.value);
+                setPage(1);
+              }}
+              InputLabelProps={{ shrink: true }}
+              sx={{
+                minWidth: 140,
+                "& .MuiOutlinedInput-root": {
+                  borderRadius: 2,
+                  bgcolor: "#f9fafb",
+                },
+              }}
+            />
+            <TextField
+              size="small"
+              type="date"
+              label="Date To"
+              value={dateTo}
+              onChange={(e) => {
+                setDateTo(e.target.value);
+                setPage(1);
+              }}
+              InputLabelProps={{ shrink: true }}
+              sx={{
+                minWidth: 140,
+                "& .MuiOutlinedInput-root": {
+                  borderRadius: 2,
+                  bgcolor: "#f9fafb",
+                },
+              }}
+            />
+            <TextField
+              size="small"
+              placeholder="Filter by location"
+              value={locationFilter}
+              onChange={(e) => {
+                setLocationFilter(e.target.value);
+                setPage(1);
+              }}
+              sx={{
+                minWidth: 160,
+                "& .MuiOutlinedInput-root": {
+                  borderRadius: 2,
+                  bgcolor: "#f9fafb",
+                },
+              }}
+            />
           </Box>
           <Tooltip title="Refresh">
             <IconButton
@@ -371,21 +533,26 @@ export default function MeetingsPageContent() {
             </IconButton>
           </Tooltip>
         </Box>
-          {/* tabs */}
+        {/* tabs */}
         <Tabs
           value={tab}
           onChange={(_, v) => {
             setTab(v);
             setPage(1);
           }}
+          variant="scrollable"
+          scrollButtons="auto"
           sx={{
             px: 2,
             borderBottom: "1px solid #e8edf3",
+            overflow: { xs: "auto", sm: "visible" },
             "& .MuiTab-root": {
               textTransform: "none",
               fontWeight: 500,
-              fontSize: "0.85rem",
+              fontSize: { xs: "0.75rem", sm: "0.85rem" },
               minHeight: 44,
+              minWidth: { xs: "auto", sm: "120px" },
+              whiteSpace: "nowrap",
             },
             "& .Mui-selected": {
               color: "#004497",
@@ -399,26 +566,33 @@ export default function MeetingsPageContent() {
           <Tab
             icon={<Event sx={{ fontSize: 18 }} />}
             iconPosition="start"
-            label={`All meetings (${MEETINGS.length})`}
+            label={`All (${meetings.length})`}
           />
           <Tab
             icon={<Today sx={{ fontSize: 18 }} />}
             iconPosition="start"
-            label={`Ongoing (${ongoingCount})`}
+            label={`Ongoing (${meetings.filter(m => m.status === 'ongoing').length})`}
           />
           <Tab
             icon={<Schedule sx={{ fontSize: 18 }} />}
             iconPosition="start"
-            label={`Upcoming (${upcomingCount})`}
+            label={`Upcoming (${meetings.filter(m => m.status === 'scheduled').length})`}
           />
           <Tab
             icon={<History sx={{ fontSize: 18 }} />}
             iconPosition="start"
-            label={`Completed (${completedCount})`}
+            label={`Completed (${meetings.filter(m => m.status === 'ended').length})`}
+          />
+          <Tab
+            icon={<Groups />}
+            iconPosition="start"
+            label={`Chaired (${getUserChairedMeetings(meetings, currentUser?.id).length})`}
           />
         </Tabs>
-          {/* tables */}
-        <TableContainer>
+        {isAdminUser ? (
+          <>
+            {/* tables */}
+            <TableContainer>
           <Table size="small">
             <TableHead>
               <TableRow sx={{ bgcolor: "#f8fafc" }}>
@@ -469,22 +643,33 @@ export default function MeetingsPageContent() {
             </TableHead>
             <TableBody>
               {loading ? (
-                [...Array(5)].map((_, i) => (
+                [...Array(ROWS_PER_PAGE)].map((_, i) => (
                   <TableRow key={i}>
-                    {[...Array(8)].map((_, j) => (
-                      <TableCell key={j}>
-                        <Typography
-                          sx={{
-                            color: "#e0e0e0",
-                            bgcolor: "#f5f5f5",
-                            borderRadius: 1,
-                            height: 20,
-                          }}
-                        >
-                          Loading
-                        </Typography>
-                      </TableCell>
-                    ))}
+                    <TableCell sx={{ minWidth: 200 }}>
+                      <Skeleton variant="text" width="70%" height={24} />
+                    </TableCell>
+                    <TableCell sx={{ minWidth: 160 }}>
+                      <Skeleton variant="text" width="60%" height={20} />
+                      <Skeleton variant="text" width="80%" height={16} sx={{ mt: 0.5 }} />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton variant="rectangular" width={60} height={24} sx={{ borderRadius: 1 }} />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton variant="rectangular" width={60} height={24} sx={{ borderRadius: 1 }} />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton variant="text" width="60%" height={20} />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton variant="text" width="70%" height={20} />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton variant="rectangular" width={80} height={28} sx={{ borderRadius: 1 }} />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton variant="rectangular" width={70} height={28} sx={{ borderRadius: 1 }} />
+                    </TableCell>
                   </TableRow>
                 ))
               ) : paginatedMeetings.length === 0 ? (
@@ -523,7 +708,7 @@ export default function MeetingsPageContent() {
                         {meeting.date}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
-                        {meeting.startTime} - {meeting.endTime}
+                        {meeting.start_time} - {meeting.end_time}
                       </Typography>
                     </TableCell>
                     <TableCell>
@@ -535,11 +720,11 @@ export default function MeetingsPageContent() {
                           fontSize: "0.7rem",
                           fontWeight: 500,
                           bgcolor:
-                            meeting.type === "Management"
+                            meeting.type === "management"
                               ? "#fce4ec"
                               : "#e0f2f1",
                           color:
-                            meeting.type === "Management"
+                            meeting.type === "management"
                               ? "#c2185b"
                               : "#00695c",
                         }}
@@ -554,11 +739,11 @@ export default function MeetingsPageContent() {
                           fontSize: "0.7rem",
                           fontWeight: 500,
                           bgcolor:
-                            meeting.category === "Internal"
+                            meeting.category === "internal"
                               ? "#e8f0fe"
                               : "#fef3e2",
                           color:
-                            meeting.category === "Internal"
+                            meeting.category === "internal"
                               ? "#004497"
                               : "#b86e00",
                         }}
@@ -574,7 +759,7 @@ export default function MeetingsPageContent() {
                       >
                         <Person sx={{ fontSize: 16, color: "#9ca3af" }} />
                         <Typography variant="body2">
-                          {meeting.chairpersonName}
+                          {meeting.organizer_id ? `${meeting.organizer_id.first_name} ${meeting.organizer_id.last_name}` : 'N/A'}
                         </Typography>
                       </Box>
                     </TableCell>
@@ -588,32 +773,23 @@ export default function MeetingsPageContent() {
                       >
                         <LocationOn sx={{ fontSize: 16, color: "#9ca3af" }} />
                         <Typography variant="body2">
-                          {meeting.location}
+                          {meeting.location || 'N/A'}
                         </Typography>
                       </Box>
                     </TableCell>
                     <TableCell>
-                      <Chip
-                        label={meeting.status}
-                        size="small"
-                        sx={{
-                          borderRadius: 1.5,
-                          fontSize: "0.7rem",
-                          fontWeight: 600,
-                          bgcolor:
-                            meeting.status === "Ongoing"
-                              ? "#e8f5e9"
-                              : meeting.status === "Scheduled"
-                              ? "#e3f2fd"
-                              : "#f3f4f6",
-                          color:
-                            meeting.status === "Ongoing"
-                              ? "#2e7d32"
-                              : meeting.status === "Scheduled"
-                              ? "#0b6cc2"
-                              : "#4b4c4d",
-                        }}
-                      />
+                      {getStatusChip(meeting.status) ? (
+                        <Chip
+                          label={getStatusChip(meeting.status).label}
+                          size="small"
+                          color={getStatusChip(meeting.status).color}
+                          sx={{
+                            borderRadius: 1.5,
+                            fontSize: "0.7rem",
+                            fontWeight: 600,
+                          }}
+                        />
+                      ) : null}
                     </TableCell>
                     <TableCell>
                       <Box sx={{ display: "flex", gap: 0.5 }}>
@@ -674,32 +850,138 @@ export default function MeetingsPageContent() {
             </TableBody>
           </Table>
         </TableContainer>
-        {/* pagination */}
-        {totalPages > 1 && (
-          <Box
-            sx={{
-              p: 2,
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              borderTop: "1px solid #e8edf3",
-            }}
-          >
-            <Typography variant="body2" color="text.secondary">
-              Showing {((page - 1) * ROWS_PER_PAGE) + 1} to{" "}
-              {Math.min(page * ROWS_PER_PAGE, filteredMeetings.length)} of{" "}
-              {filteredMeetings.length}
-            </Typography>
-            <Pagination
-              count={totalPages}
-              page={page}
-              onChange={(e, v) => setPage(v)}
-              siblingCount={1}
-              boundaryCount={1}
-              size="small"
-              sx={{ "& .MuiPaginationItem-root": { borderRadius: 1.5 } }}
-            />
-          </Box>
+          </>
+        ) : (
+          <>
+            {/* Card List for non-admin users */}
+            <Box sx={{ mt: 2 }}>
+              {loading ? (
+                <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 2 }}>
+                  {[...Array(6)].map((_, i) => (
+                    <Paper key={i} sx={{ p: 3, borderRadius: 2, border: "1px solid #e8edf3" }}>
+                      <Skeleton variant="text" width="80%" height={28} sx={{ mb: 2 }} />
+                      <Skeleton variant="text" width="60%" height={20} sx={{ mb: 1 }} />
+                      <Skeleton variant="text" width="70%" height={20} sx={{ mb: 1 }} />
+                      <Box sx={{ display: "flex", gap: 1, mt: 3 }}>
+                        <Skeleton variant="rectangular" width={60} height={28} sx={{ borderRadius: 1 }} />
+                        <Skeleton variant="rectangular" width={60} height={28} sx={{ borderRadius: 1 }} />
+                      </Box>
+                    </Paper>
+                  ))}
+                </Box>
+              ) : paginatedMeetings.length === 0 ? (
+                <Typography align="center" sx={{ py: 6 }} color="text.secondary">
+                  No meetings found
+                </Typography>
+              ) : (
+                <Box >
+                  {paginatedMeetings.map((meeting) => (
+                    <Box  key={meeting.id}>
+                      <Card
+                        sx={{
+                          
+                          boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+                          cursor: "pointer",
+                          transition: "all 0.3s ease",
+                          "&:hover": {
+                            transform: "translateY(-4px)",
+                            boxShadow: "0 8px 30px rgba(0,0,0,0.15)",
+                          },
+                          background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+                          border: "1px solid #e8edf3",
+                        }}
+                        onClick={() => handleViewDetails(meeting)}
+                      >
+                        <CardContent sx={{ p: 3, display: "flex", alignItems: { xs: "start", md: "center" }, gap: 1.5, justifyContent: "space-between", flexDirection: { xs: "column", md: "row" } }}>
+                          <Box>
+
+                          <Typography
+                            variant="body1"
+                            sx={{
+                              fontWeight: 700,
+                              color: "#1a1a2e",
+                              mb: 2,
+                              display: "-webkit-box",
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: "vertical",
+                              overflow: "hidden",
+                            }}
+                          >
+                            {meeting.title}
+                          </Typography>
+                          <Box sx={{ display: "flex", alignItems: { xs: "start", md: "center" }, gap: 1, flexDirection: { xs: "column", md: "row" }}}>
+
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+                                <Event sx={{ fontSize: 18, color: "#004497" }} />
+                                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                  {meeting.date} • {meeting.start_time} - {meeting.end_time}
+                                </Typography>
+                                
+                              </Box>
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+                                <LocationOn sx={{ fontSize: 18, color: "#2e7d32" }} />
+                                <Typography variant="body2">{meeting.location || 'N/A'}</Typography>
+                              </Box>
+                          </Box>
+                          
+                          </Box>
+                          <Box sx={{display: "flex", justifyContent: "right", flexDirection: "column", gap:1}}>
+                            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", justifyContent:{ xs: "start", md: "flex-end" }}}>
+                            <Chip
+                              label={meeting.type}
+                              size="small"
+                              sx={{
+                                borderRadius: 1.5,
+                                fontSize: "0.7rem",
+                                fontWeight: 500,
+                                bgcolor: meeting.type === "management" ? "#fce4ec" : "#e0f2f1",
+                                color: meeting.type === "management" ? "#c2185b" : "#00695c",
+                              }}
+                            />
+                            <Chip
+                              label={meeting.category}
+                              size="small"
+                              sx={{
+                                borderRadius: 1.5,
+                                fontSize: "0.7rem",
+                                fontWeight: 500,
+                                bgcolor: meeting.category === "internal" ? "#e8f0fe" : "#fef3e2",
+                                color: meeting.category === "internal" ? "#004497" : "#b86e00",
+                              }}
+                            />
+                            {getStatusChip(meeting.status) && (
+                              <Chip
+                                label={getStatusChip(meeting.status).label}
+                                size="small"
+                                color={getStatusChip(meeting.status).color}
+                                sx={{
+                                  borderRadius: 1.5,
+                                  fontSize: "0.7rem",
+                                  fontWeight: 600,
+                                }}
+                              />
+                            )}
+                          </Box>
+                            
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+                              <Person sx={{ fontSize: 18, color: "#9c27b0" }} />
+
+                              <Typography variant="body2">
+                                
+                                {meeting.organizer_id ? `Chaired by: ${meeting.organizer_id.first_name} ${meeting.organizer_id.last_name}` : 'N/A'}
+                              </Typography>
+                              
+                            </Box>
+                          </Box>
+                          
+                        </CardContent>
+                      </Card>
+                    </Box>
+                  ))}
+                </Box>
+              )}
+            </Box>
+          </>
         )}
       </Paper>
 

@@ -88,7 +88,7 @@ function getInitials(firstName, lastName) {
 
 export default function UserManagementPage() {
   const router = useRouter();
-  const { users, roles, fetchUsers } = useAuth();
+  const { users, roles, fetchUsers, currentUser } = useAuth();
 
   const [tab, setTab]           = useState(0);
   const [search, setSearch]     = useState("");
@@ -116,7 +116,7 @@ export default function UserManagementPage() {
     setLoading(true);
     fetchUsers().finally(() => setLoading(false));
   };
-
+  const canManageUsers = currentUser && (currentUser.role === "System Administrator" );
   const filteredUsers = useMemo(() => {
     let filtered = [...users];
     if (tab === 1) filtered = filtered.filter((u) => u.status === ACCOUNT_STATUS.ACTIVE);
@@ -171,6 +171,10 @@ export default function UserManagementPage() {
 
   const exportPDF = () => {
     const printWindow = window.open("", "_blank");
+    const exportDate = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+    const activeCount = filteredUsers.filter(u => u.status === "Active").length;
+    const inactiveCount = filteredUsers.filter(u => u.status === "Inactive").length;
+
     const tableRows = filteredUsers.map((u) => `
       <tr>
         <td>${u.employeeId || "—"}</td>
@@ -188,18 +192,26 @@ export default function UserManagementPage() {
       <head>
         <title>Users Export</title>
         <style>
-          body { font-family: Arial, sans-serif; font-size: 12px; margin: 20px; }
-          h2 { color: #004497; margin-bottom: 8px; }
-          p { color: #6b7280; margin-bottom: 16px; font-size: 11px; }
-          table { border-collapse: collapse; width: 100%; }
-          th { background: #004497; color: white; padding: 8px 10px; text-align: left; font-size: 11px; }
-          td { border-bottom: 1px solid #e8edf3; padding: 7px 10px; }
+          body { font-family: Arial, sans-serif; font-size: 12px; margin: 20px; color: #1a1a2e; }
+          h1 { color: #004497; margin: 0 0 4px 0; font-size: 18px; }
+          .summary { color: #6b7280; margin-bottom: 16px; font-size: 11px; }
+          .stats { margin: 16px 0; padding: 12px; background: #f0f4f8; border-left: 4px solid #004497; }
+          .stat-item { display: inline-block; margin-right: 24px; font-size: 12px; }
+          .stat-label { color: #6b7280; font-size: 11px; }
+          .stat-value { color: #004497; font-weight: bold; }
+          table { border-collapse: collapse; width: 100%; margin-top: 16px; }
+          th { background: #004497; color: white; padding: 10px; text-align: left; font-weight: bold; font-size: 11px; }
+          td { border-bottom: 1px solid #e8edf3; padding: 8px 10px; }
           tr:nth-child(even) td { background: #f8fafc; }
         </style>
       </head>
       <body>
-        <h2>URA MAMS — User List</h2>
-        <p>Exported on ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })} &nbsp;|&nbsp; ${filteredUsers.length} users</p>
+        <h1>URA MAMS — User List</h1>
+        <p class="summary">Exported on ${exportDate} | Total Users: ${filteredUsers.length}</p>
+        <div class="stats">
+          <div class="stat-item"><div class="stat-label">Active</div><div class="stat-value">${activeCount}</div></div>
+          <div class="stat-item"><div class="stat-label">Inactive</div><div class="stat-value">${inactiveCount}</div></div>
+        </div>
         <table>
           <thead>
             <tr>

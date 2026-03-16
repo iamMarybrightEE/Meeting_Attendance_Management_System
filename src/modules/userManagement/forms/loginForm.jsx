@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Formik, Form } from "formik";
 import * as Yup from "yup";
 import {
@@ -34,6 +34,7 @@ const loginSchema = Yup.object({
 
 export default function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState("");
@@ -43,7 +44,13 @@ export default function LoginForm() {
     try {
       const result = await login(values.email, values.password);
       if (result.success) {
-        router.push("/dashboard");
+        // Check if there's a redirect parameter
+        const redirectUrl = searchParams.get("redirect");
+        if (redirectUrl) {
+          router.push(decodeURIComponent(redirectUrl));
+        } else {
+          router.push("/dashboard");
+        }
       } else {
         setLoginError(result.message || "Invalid email or password. Please try again.");
       }

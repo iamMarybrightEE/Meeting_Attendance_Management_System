@@ -2,11 +2,14 @@
 
 import DashboardLayout from "@/modules/dashboard/layout/dashboardLayout";
 import MeetingsPageContent from "@/modules/meetings/pages/meetingsPageContent";
+import { ProtectedRoute } from "@/lib/protectedRoute";
 
 export default function MeetingsPage() {
   return (
-    <DashboardLayout>
-      <MeetingsPageContent />
-    </DashboardLayout>
+    <ProtectedRoute>
+      <DashboardLayout>
+        <MeetingsPageContent />
+      </DashboardLayout>
+    </ProtectedRoute>
   );
 }

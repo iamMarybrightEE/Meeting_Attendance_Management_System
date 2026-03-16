@@ -15,16 +15,13 @@ import {
   IconButton,
   Alert,
   CircularProgress,
-  InputAdornment,
-  
+  Paper,
 } from "@mui/material";
-import { Close, Warning, AttachFile ,
-   } from "@mui/icons-material";
-import { useAuth } from "../../../context/AuthContext";
+import { Close, Warning, Upload, AttachFile } from "@mui/icons-material";
 
 const appealSchema = Yup.object({
   reason: Yup.string().min(10, "Reason must be at least 10 characters").required("Reason is required"),
-  attachment: Yup.string(),
+  document: Yup.mixed().optional(),
 });
 
 const inputStyle = {
@@ -36,18 +33,48 @@ const inputStyle = {
   "& .MuiInputLabel-root.Mui-focused": { color: "#004497" },
 };
 
-export default function AppealModal({ open, onClose, meeting, onSubmit }) {
-  const { currentUser } = useAuth();
+export default function AppealModal({ open, onClose, meeting, onSubmit, existingAppeal }) {
   const [apiError, setApiError] = useState("");
+  const [uploadedFile, setUploadedFile] = useState(null);
+
+  // Don't allow opening if appeal already exists and is not rejected
+  if (existingAppeal && existingAppeal.status !== 'rejected') {
+    return null;
+  }
+
+  const handleFileChange = (event, setFieldValue) => {
+    const file = event.currentTarget.files?.[0];
+    if (file) {
+      // Validate file size (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        setApiError("File size must be less than 10MB");
+        return;
+      }
+      setUploadedFile(file);
+      setFieldValue("document", file);
+    }
+  };
 
   const handleSubmit = async (values, { setSubmitting }) => {
     setApiError("");
     try {
-      console.log("Submitting appeal:", {
-        meetingId: meeting?.id,
-        userId: currentUser?.id,
-        ...values,
+      const formData = new FormData();
+      formData.append("reason", values.reason);
+      if (uploadedFile) {
+        formData.append("document", uploadedFile);
+      }
+
+      const response = await fetch(`/api/meetings/${meeting?.id}/appeals`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('mams_access_token')}` },
+        body: formData,
       });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to submit appeal');
+      }
+
       onSubmit?.();
       onClose();
     } catch (err) {
@@ -65,28 +92,31 @@ export default function AppealModal({ open, onClose, meeting, onSubmit }) {
       fullWidth
       PaperProps={{
         sx: {
-          borderRadius: 3,
-          boxShadow: "0 24px 60px rgba(0,0,0,0.15)",
+          borderRadius: 4,
+          boxShadow: "0 16px 48px rgba(44,62,80,0.18)",
           overflowY: "auto",
           scrollbarWidth: "none",
           "&::-webkit-scrollbar": { display: "none" },
         },
       }}
     >
+      {/* Header */}
       <Box
         sx={{
-          background: "linear-gradient(135deg, #856404 0%, #f57c00 100%)",
-          p: 2.5,
+          background: "linear-gradient(90deg, #f57c00 0%, #ffb300 100%)",
+          p: 3,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
+          borderTopLeftRadius: 16,
+          borderTopRightRadius: 16,
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-          <Warning sx={{ color: "#fff", fontSize: 22 }} />
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+          <Warning sx={{ color: "#fff", fontSize: 26 }} />
           <Typography
             variant="h6"
-            sx={{ color: "#fff", fontWeight: 700, fontSize: "1rem" }}
+            sx={{ color: "#fff", fontWeight: 800, fontSize: "1.15rem", letterSpacing: 0.5 }}
           >
             Submit Appeal
           </Typography>
@@ -94,7 +124,11 @@ export default function AppealModal({ open, onClose, meeting, onSubmit }) {
         <IconButton
           size="small"
           onClick={onClose}
-          sx={{ color: "rgba(255,255,255,0.8)" }}
+          sx={{
+            color: "#fff",
+            background: "rgba(255,255,255,0.12)",
+            "&:hover": { background: "rgba(255,255,255,0.22)" },
+          }}
         >
           <Close fontSize="small" />
         </IconButton>
@@ -103,26 +137,26 @@ export default function AppealModal({ open, onClose, meeting, onSubmit }) {
       <Formik
         initialValues={{
           reason: "",
-          attachment: "",
+          document: null,
         }}
         validationSchema={appealSchema}
         onSubmit={handleSubmit}
       >
-        {({ values, errors, touched, handleChange, handleBlur, isSubmitting }) => (
+        {({ values, errors, touched, handleChange, handleBlur, isSubmitting, setFieldValue }) => (
           <Form noValidate>
-            <DialogContent sx={{ p: 3 }}>
+            <DialogContent sx={{ p: 4, bgcolor: "#f8fafc" }}>
               {apiError && (
                 <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
                   {apiError}
                 </Alert>
               )}
 
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3, fontSize: 15 }}>
                 Submit an appeal for <strong>{meeting?.title}</strong> on{" "}
                 <strong>{meeting?.date}</strong>.
               </Typography>
 
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
                 <TextField
                   fullWidth
                   size="small"
@@ -136,50 +170,95 @@ export default function AppealModal({ open, onClose, meeting, onSubmit }) {
                   onBlur={handleBlur}
                   error={touched.reason && Boolean(errors.reason)}
                   helperText={touched.reason && errors.reason}
-                  sx={inputStyle}
+                  sx={{
+                    ...inputStyle,
+                    bgcolor: "#fff",
+                    borderRadius: 2,
+                  }}
                 />
 
-                <TextField
-                    fullWidth
-                    size="small"
-                    name="attachment"
-                    label="Attachment / Reference"
-                    placeholder="Upload a document"
-                    value={values.attachment ? values.attachment.name : ""}
-                    InputProps={{
-                        readOnly: true, // so user can't type in it
-                        endAdornment: (
-                        <InputAdornment position="end">
-                            <IconButton component="label">
-                            <AttachFile />
-                            <input
-                                hidden
-                                type="file"
-                                onChange={handleChange}
-                            />
-                            </IconButton>
-                        </InputAdornment>
-                        ),
+                {/* Document Upload Section */}
+                <Box>
+                  <Typography variant="body2" sx={{ fontWeight: 700, mb: 1.5, color: "#1a1a2e" }}>
+                    Supporting Document <span style={{ fontWeight: 400 }}>(Optional)</span>
+                  </Typography>
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      p: 2.5,
+                      textAlign: "center",
+                      border: "2px dashed #e0e7ef",
+                      borderRadius: 2.5,
+                      bgcolor: "#f4f7fb",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                      display: "block",
+                      "&:hover": {
+                        borderColor: "#f57c00",
+                        bgcolor: "#fff8e1",
+                      },
+                      boxShadow: "none",
                     }}
-                    onBlur={handleBlur}
-                    error={touched.attachment && Boolean(errors.attachment)}
-                    helperText={touched.attachment && errors.attachment}
-                    sx={inputStyle}
-                />
+                    component="label"
+                  >
+                    <input
+                      hidden
+                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                      type="file"
+                      onChange={(e) => handleFileChange(e, setFieldValue)}
+                    />
+                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1.5, mb: 1 }}>
+                      <Upload sx={{ fontSize: 30, color: "#f57c00" }} />
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: 13 }}>
+                        PDF, DOC, DOCX, JPG, PNG (Max 10MB)
+                      </Typography>
+                    </Box>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: "#f57c00" }}>
+                      Click to upload or drag and drop
+                    </Typography>
+                  </Paper>
+
+                  {uploadedFile && (
+                    <Box
+                      sx={{
+                        mt: 2,
+                        p: 1.5,
+                        borderRadius: 2,
+                        bgcolor: "#e6f9ee",
+                        border: "1px solid #43a047",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1.5,
+                      }}
+                    >
+                      <AttachFile sx={{ color: "#43a047", fontSize: 22 }} />
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: "#388e3c" }}>
+                          {uploadedFile.name}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {(uploadedFile.size / 1024).toFixed(2)} KB
+                        </Typography>
+                      </Box>
+                    </Box>
+                  )}
+                </Box>
               </Box>
             </DialogContent>
             <Divider />
-            <DialogActions sx={{ px: 3, py: 2, gap: 1 }}>
+            <DialogActions sx={{ px: 4, py: 2.5, gap: 1 }}>
               <Button
                 onClick={onClose}
                 variant="outlined"
                 disabled={isSubmitting}
                 sx={{
                   borderRadius: 2,
-                  borderColor: "#d0d5dd",
+                  borderColor: "#e0e7ef",
                   color: "#555",
                   textTransform: "none",
-                  "&:hover": { borderColor: "#004497", color: "#004497" },
+                  fontWeight: 500,
+                  px: 2.5,
+                  "&:hover": { borderColor: "#f57c00", color: "#f57c00" },
                 }}
               >
                 Cancel
@@ -190,14 +269,15 @@ export default function AppealModal({ open, onClose, meeting, onSubmit }) {
                 disabled={isSubmitting}
                 sx={{
                   borderRadius: 2,
-                  background: "linear-gradient(135deg, #856404 0%, #f57c00 100%)",
+                  background: "linear-gradient(90deg, #f57c00 0%, #ffb300 100%)",
                   textTransform: "none",
-                  fontWeight: 600,
-                  px: 3,
+                  fontWeight: 700,
+                  px: 4,
+                  boxShadow: "0 2px 8px rgba(245,124,0,0.08)",
                   display: "flex",
                   gap: 1,
                   "&:hover": {
-                    background: "linear-gradient(135deg, #6d5203, #e67e00)",
+                    background: "linear-gradient(90deg, #e65100 0%, #ffb300 100%)",
                   },
                 }}
               >
@@ -211,3 +291,4 @@ export default function AppealModal({ open, onClose, meeting, onSubmit }) {
     </Dialog>
   );
 }
+            

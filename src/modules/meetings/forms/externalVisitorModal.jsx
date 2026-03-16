@@ -19,6 +19,7 @@ import {
   CircularProgress,
 } from "@mui/material";
 import { Close, PersonAdd } from "@mui/icons-material";
+import { useAuth } from "../../../context/AuthContext";
 
 const visitorSchema = Yup.object({
   firstName: Yup.string().min(2, "Too short").required("First name is required"),
@@ -47,10 +48,29 @@ export default function ExternalVisitorModal({ open, meeting, onClose, onSuccess
   const handleSubmit = async (values, { setSubmitting, resetForm }) => {
     setApiError("");
     try {
-      console.log("Registering external visitor:", {
-        meetingId: meeting?.id,
-        ...values
+      const fullName = [values.firstName, values.middleName, values.lastName]
+        .filter(Boolean)
+        .join(" ");
+
+      const response = await fetch(`/api/meetings/${meeting?.id}/external-participants`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('mams_access_token')}`,
+        },
+        body: JSON.stringify({
+          full_name: fullName,
+          organization: values.organization,
+          email: values.email,
+          phone: values.phone,
+        }),
       });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to register visitor');
+      }
+
       resetForm();
       onSuccess?.();
       onClose();

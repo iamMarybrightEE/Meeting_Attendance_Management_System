@@ -20,6 +20,7 @@ import {
   LinearProgress,
   Tooltip,
   CircularProgress,
+  Alert,
 } from "@mui/material";
 import {
   ArrowBack,
@@ -41,6 +42,7 @@ import { auditLogsApi } from "../../../lib/apiClient";
 import { ACCOUNT_STATUS } from "../../../data/dummyData";
 import UserEditModal from "../forms/userEditModal";
 import ResetPasswordModal from "../forms/resetPasswordModal";
+import { canViewProfile, canEditProfile, isSystemAdmin } from "../../../lib/permissions";
 
 function getStatusChip(status) {
   const map = {
@@ -76,14 +78,19 @@ function InfoRow({ icon, label, value }) {
 export default function UserProfilePage() {
   const params = useParams();
   const router = useRouter();
-  const { users } = useAuth();
+  const { users, currentUser } = useAuth();
   const [tab, setTab] = useState(0);
   const [editOpen, setEditOpen] = useState(false);
   const [resetPasswordOpen, setResetPasswordOpen] = useState(false);
   const [loginHistory, setLoginHistory] = useState([]);
   const [loginHistoryLoading, setLoginHistoryLoading] = useState(false);
+  const [attendanceStats, setAttendanceStats] = useState({ present: 0, excused: 0, missed: 0, total: 0 });
 
   const user = users.find((u) => u.id === params.id);
+  
+  // Check if current user can view this profile
+  const canView = canViewProfile(currentUser, params.id, user?.department);
+  const canEdit = canEditProfile(currentUser, params.id);
 
   // Fetch real login history from audit logs
   useEffect(() => {
@@ -104,19 +111,56 @@ export default function UserProfilePage() {
       .finally(() => setLoginHistoryLoading(false));
   }, [user?.id]);
 
+  // Fetch real attendance stats
+  useEffect(() => {
+    if (!user?.id) return;
+    const fetchAttendanceStats = async () => {
+      try {
+        const response = await fetch('/api/meetings', {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('mams_access_token')}` },
+        });
+        const data = await response.json();
+        const userMeetings = data.meetings.filter(m => m.meeting_attendees.some(a => (typeof a.user_id === 'object' ? a.user_id?.id : a.user_id) === user.id));
+        const stats = { present: 0, excused: 0, missed: 0 };
+        userMeetings.forEach(m => {
+          const attendance = m.meeting_attendees.find(a => (typeof a.user_id === 'object' ? a.user_id?.id : a.user_id) === user.id);
+          if (attendance && attendance.status) {
+            if (attendance.status === 'present') stats.present++;
+            else if (attendance.status === 'excused') stats.excused++;
+            else if (attendance.status === 'missed') stats.missed++;
+          }
+        });
+        stats.total = stats.present + stats.excused + stats.missed;
+        setAttendanceStats(stats);
+      } catch (err) {
+        console.error('Failed to fetch attendance stats:', err);
+      }
+    };
+    fetchAttendanceStats();
+  }, [user?.id]);
+
   if (!user) {
     return (
       <Box sx={{ p: 4, textAlign: "center" }}>
         <Typography variant="h6" color="text.secondary">User not found</Typography>
-        <Button onClick={() => router.push("/user-management")} sx={{ mt: 2 }}>Back to User Management</Button>
+        <Button onClick={() => router.push(currentUser && isSystemAdmin(currentUser) ? "/user-management" : "/meetings")} sx={{ mt: 2 }}>Go Back</Button>
+      </Box>
+    );
+  }
+
+  if (!canView) {
+    return (
+      <Box sx={{ p: 4 }}>
+        <Alert severity="error">You do not have permission to view this profile.</Alert>
+        <Button onClick={() => router.back()} sx={{ mt: 2 }}>Go Back</Button>
       </Box>
     );
   }
 
   const statusStyle = getStatusChip(user.status);
   const roleColor = getRoleColor(user.role);
-  const totalAttendance = user.attendanceStats.present + user.attendanceStats.excused + user.attendanceStats.missed;
-  const attendanceRate = totalAttendance > 0 ? Math.round((user.attendanceStats.present / totalAttendance) * 100) : 0;
+  const totalAttendance = attendanceStats.total;
+  const attendanceRate = totalAttendance > 0 ? Math.round((attendanceStats.present / totalAttendance) * 100) : 0;
 
   return (
     <Box sx={{ animation: "fadeIn 0.4s ease", "@keyframes fadeIn": { from: { opacity: 0 }, to: { opacity: 1 } } }}>
@@ -169,26 +213,34 @@ export default function UserProfilePage() {
             </Box>
             <Divider />
             <Box sx={{ p: 2, display: "flex", gap: 1 }}>
-              <Button
-                startIcon={<Edit />}
-                size="small"
-                fullWidth
-                variant="outlined"
-                onClick={() => setEditOpen(true)}
-                sx={{ borderRadius: 2, textTransform: "none", borderColor: "#d0d5dd", color: "#555", "&:hover": { borderColor: "#004497", color: "#004497" } }}
-              >
-                Edit
-              </Button>
-              <Button
-                startIcon={<LockReset />}
-                size="small"
-                fullWidth
-                variant="outlined"
-                onClick={() => setResetPasswordOpen(true)}
-                sx={{ borderRadius: 2, textTransform: "none", borderColor: "#d0d5dd", color: "#555", "&:hover": { borderColor: "#FFB236", color: "#856404" } }}
-              >
-                Reset Pass
-              </Button>
+              {canEdit ? (
+                <>
+                  <Button
+                    startIcon={<Edit />}
+                    size="small"
+                    fullWidth
+                    variant="outlined"
+                    onClick={() => setEditOpen(true)}
+                    sx={{ borderRadius: 2, textTransform: "none", borderColor: "#d0d5dd", color: "#555", "&:hover": { borderColor: "#004497", color: "#004497" } }}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    startIcon={<LockReset />}
+                    size="small"
+                    fullWidth
+                    variant="outlined"
+                    onClick={() => setResetPasswordOpen(true)}
+                    sx={{ borderRadius: 2, textTransform: "none", borderColor: "#d0d5dd", color: "#555", "&:hover": { borderColor: "#FFB236", color: "#856404" } }}
+                  >
+                    Reset Pass
+                  </Button>
+                </>
+              ) : (
+                <Typography variant="caption" sx={{ color: "#9ca3af", py: 1 }}>
+                  You can only edit your own profile. Contact your admin for changes.
+                </Typography>
+              )}
             </Box>
           </Paper>
 
@@ -217,9 +269,9 @@ export default function UserProfilePage() {
             </Box>
             <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 1 }}>
               {[
-                { label: "Present", value: user.attendanceStats.present, color: "#018e11", icon: <CheckCircle sx={{ fontSize: 14 }} /> },
-                { label: "Excused", value: user.attendanceStats.excused, color: "#FFB236", icon: <Warning sx={{ fontSize: 14 }} /> },
-                { label: "Missed", value: user.attendanceStats.missed, color: "#f74a4d", icon: <Cancel sx={{ fontSize: 14 }} /> },
+                { label: "Present", value: attendanceStats.present, color: "#018e11", icon: <CheckCircle sx={{ fontSize: 14 }} /> },
+                { label: "Excused", value: attendanceStats.excused, color: "#FFB236", icon: <Warning sx={{ fontSize: 14 }} /> },
+                { label: "Missed", value: attendanceStats.missed, color: "#f74a4d", icon: <Cancel sx={{ fontSize: 14 }} /> },
               ].map((s) => (
                 <Box key={s.label} sx={{ p: 1, borderRadius: 2, bgcolor: `${s.color}12`, textAlign: "center" }}>
                   <Box sx={{ color: s.color, display: "flex", justifyContent: "center" }}>{s.icon}</Box>

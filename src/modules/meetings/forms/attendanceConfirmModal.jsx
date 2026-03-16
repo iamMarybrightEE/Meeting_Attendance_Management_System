@@ -21,7 +21,7 @@ import {
   CircularProgress,
 } from "@mui/material";
 import { Close, QrCode } from "@mui/icons-material";
-import { ATTENDANCE_STATUS } from "../../../data/dummyData";
+import { useAuth } from "../../../context/AuthContext";
 
 const attendanceSchema = Yup.object({
   meeting_id: Yup.string().required("Meeting ID is required"),
@@ -44,11 +44,20 @@ export default function AttendanceConfirmModal({ open, attendance, meeting, onCl
   const handleSubmit = async (values, { setSubmitting }) => {
     setApiError("");
     try {
-      console.log("Updating attendance:", {
-        meetingId: meeting?.id,
-        userId: attendance?.userId,
-        ...values
+      const response = await fetch(`/api/meetings/${meeting?.id}/attendance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('mams_access_token')}` },
+        body: JSON.stringify({
+          user_id: attendance?.userId,
+          notes: values.notes || null,
+        }),
       });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to confirm attendance');
+      }
+
       onSuccess?.();
       onClose();
     } catch (err) {
