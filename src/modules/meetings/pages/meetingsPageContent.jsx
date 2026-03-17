@@ -915,15 +915,14 @@ export default function MeetingsPageContent() {
                         }}
                         onClick={() => handleViewDetails(meeting)}
                       >
-                        <CardContent sx={{ p: 3, display: "flex", alignItems: { xs: "start", md: "center" }, gap: 1.5, justifyContent: "space-between", flexDirection: { xs: "column", md: "row" } }}>
-                          <Box>
+                        <CardContent sx={{ px: 3, display: "flex", alignItems: { xs: "start", md: "center" }, gap: 1.5, justifyContent: "space-between", flexDirection: { xs: "column", md: "row" } }}>
+                          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, flex: 1 }}>
 
                           <Typography
                             variant="body1"
                             sx={{
                               fontWeight: 700,
                               color: "#1a1a2e",
-                              mb: 2,
                               display: "-webkit-box",
                               WebkitLineClamp: 2,
                               WebkitBoxOrient: "vertical",
@@ -948,7 +947,7 @@ export default function MeetingsPageContent() {
                           </Box>
                           
                           </Box>
-                          <Box sx={{display: "flex", justifyContent: "right", flexDirection: "column", gap:1}}>
+                          <Box sx={{display: "flex", justifyContent: "right", alignItems:{ xs: "start", md: "flex-end" }, flexDirection: "column", gap:1}}>
                             <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", justifyContent:{ xs: "start", md: "flex-end" }}}>
                             <Chip
                               label={meeting.type}

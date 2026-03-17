@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { Box, CircularProgress } from '@mui/material';
 import { useAuth } from '@/context/AuthContext';
 import LoginForm from '../modules/userManagement/forms/loginForm';
 
-export default function Home() {
+function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isAuthenticated, isLoading } = useAuth();
@@ -72,6 +72,30 @@ export default function Home() {
       </div>
       <LoginForm />
     </main>
+  );
+}
+
+function HomeLoading() {
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh',
+        bgcolor: '#f4f6f9',
+      }}
+    >
+      <CircularProgress sx={{ color: '#004497' }} />
+    </Box>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<HomeLoading />}>
+      <HomeContent />
+    </Suspense>
   );
 }
 
