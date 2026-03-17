@@ -24,6 +24,7 @@ import {
 } from "@mui/material";
 import { Edit, Close, CalendarToday, AccessTime } from "@mui/icons-material";
 import { useAuth } from "../../../context/AuthContext";
+import { isSystemAdmin, isAdmin, isChairperson } from "../../../lib/permissions";
 
 const meetingSchema = Yup.object({
   title: Yup.string()
@@ -67,8 +68,12 @@ const inputStyle = {
 };
 
 export default function EditMeetingModal({ open, onClose, selectedMeeting, onSuccess }) {
-  const { users } = useAuth();
+  const { users, currentUser } = useAuth();
   const [apiError, setApiError] = useState("");
+  
+  // Check if current user is a chairperson (not admin/system admin)
+  const isOrdinaryStaffChairperson = currentUser?.role === "Chairperson";
+  const canSelectChairperson = isSystemAdmin(currentUser) || isAdmin(currentUser);
 
   const handleSubmit = async (values, { setSubmitting }) => {
     setApiError("");
@@ -172,32 +177,56 @@ export default function EditMeetingModal({ open, onClose, selectedMeeting, onSuc
         }}
         validationSchema={meetingSchema}
         onSubmit={handleSubmit}
+        enableReinitialize={true}
       >
-        {({ values, errors, touched, handleChange, handleBlur, isSubmitting }) => (
-          <Form noValidate>
-            <DialogContent sx={{ p: 3 }}>
-              {apiError && (
-                <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
-                  {apiError}
-                </Alert>
-              )}
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  name="title"
-                  label="Meeting Title *"
-                  value={values.title}
-                  onChange={handleChange}
-                  onBlur={handleBlur}
-                  error={touched.title && Boolean(errors.title)}
-                  helperText={touched.title && errors.title}
-                  sx={inputStyle}
-                />
-                <TextField
-                  fullWidth
-                  size="small"
-                  name="location"
+        {({ values, errors, touched, handleChange, handleBlur, isSubmitting, setValues }) => {
+          const handleTimeChange = (e) => {
+            const { name, value } = e.target;
+            handleChange(e);
+            
+            // Auto-calculate duration when time fields change
+            const startTime = name === 'startTime' ? value : values.startTime;
+            const endTime = name === 'endTime' ? value : values.endTime;
+            
+            if (startTime && endTime) {
+              const [startHour, startMin] = startTime.split(':').map(Number);
+              const [endHour, endMin] = endTime.split(':').map(Number);
+              
+              const startMinutes = startHour * 60 + startMin;
+              const endMinutes = endHour * 60 + endMin;
+              
+              let duration = endMinutes - startMinutes;
+              if (duration <= 0) duration += 24 * 60; // Handle next day
+              
+              setValues({ ...values, [name]: value, duration });
+            }
+          };
+
+          return (
+            <Form noValidate>
+              <DialogContent sx={{ p: 3 }}>
+                {apiError && (
+                  <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+                    {apiError}
+                  </Alert>
+                )}
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    name="title"
+                    label="Meeting Title *"
+                    value={values.title}
+                    onChange={handleChange}
+                    onBlur={handleBlur}
+                    error={touched.title && Boolean(errors.title)}
+                    helperText={touched.title && errors.title}
+                    sx={inputStyle}
+                  />
+                  <TextField
+                    fullWidth
+                    size="small"
+                    name="location"
                   label="Location *"
                   value={values.location}
                   onChange={handleChange}
@@ -247,7 +276,7 @@ export default function EditMeetingModal({ open, onClose, selectedMeeting, onSuc
                     label="Start Time *"
                     type="time"
                     value={values.startTime}
-                    onChange={handleChange}
+                    onChange={handleTimeChange}
                     onBlur={handleBlur}
                     error={touched.startTime && Boolean(errors.startTime)}
                     helperText={touched.startTime && errors.startTime}
@@ -256,6 +285,7 @@ export default function EditMeetingModal({ open, onClose, selectedMeeting, onSuc
                       startAdornment: <AccessTime sx={{ mr: 1, fontSize: 18, color: "#004497" }} />
                     }}
                     sx={inputStyle}
+                    
                   />
                   <TextField
                     fullWidth
@@ -264,7 +294,7 @@ export default function EditMeetingModal({ open, onClose, selectedMeeting, onSuc
                     label="End Time *"
                     type="time"
                     value={values.endTime}
-                    onChange={handleChange}
+                    onChange={handleTimeChange}
                     onBlur={handleBlur}
                     error={touched.endTime && Boolean(errors.endTime)}
                     helperText={touched.endTime && errors.endTime}
@@ -321,6 +351,7 @@ export default function EditMeetingModal({ open, onClose, selectedMeeting, onSuc
                     />
                   )}
                   sx={inputStyle}
+                  disabled={!canSelectChairperson}
                 />
                 <Autocomplete
                   multiple
@@ -422,7 +453,8 @@ export default function EditMeetingModal({ open, onClose, selectedMeeting, onSuc
               </Button>
             </DialogActions>
           </Form>
-        )}
+        );
+        }}
       </Formik>
     </Dialog>
   );

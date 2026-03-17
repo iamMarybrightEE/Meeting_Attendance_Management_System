@@ -211,27 +211,50 @@ export default function ScheduleMeetingModal({
         validationSchema={dynamicSchema}
         onSubmit={handleSubmit}
       >
-        {({ values, errors, touched, handleChange, handleBlur, isSubmitting }) => (
-          <Form noValidate>
-            <DialogContent sx={{ p: 3 }}>
-              {apiError && (
-                <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
-                  {apiError}
-                </Alert>
-              )}
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  name="title"
-                  label="Meeting Title *"
-                  value={values.title}
-                  onChange={handleChange}
-                  onBlur={handleBlur}
-                  error={touched.title && Boolean(errors.title)}
-                  helperText={touched.title && errors.title}
-                  sx={inputStyle}
-                />
+        {({ values, errors, touched, handleChange, handleBlur, isSubmitting, setValues }) => {
+          const handleTimeChange = (e) => {
+            const { name, value } = e.target;
+            handleChange(e);
+            
+            // Auto-calculate duration when time fields change
+            const startTime = name === 'startTime' ? value : values.startTime;
+            const endTime = name === 'endTime' ? value : values.endTime;
+            
+            if (startTime && endTime) {
+              const [startHour, startMin] = startTime.split(':').map(Number);
+              const [endHour, endMin] = endTime.split(':').map(Number);
+              
+              const startMinutes = startHour * 60 + startMin;
+              const endMinutes = endHour * 60 + endMin;
+              
+              let duration = endMinutes - startMinutes;
+              if (duration <= 0) duration += 24 * 60; // Handle next day
+              
+              setValues({ ...values, [name]: value, duration });
+            }
+          };
+
+          return (
+            <Form noValidate>
+              <DialogContent sx={{ p: 3 }}>
+                {apiError && (
+                  <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+                    {apiError}
+                  </Alert>
+                )}
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    name="title"
+                    label="Meeting Title *"
+                    value={values.title}
+                    onChange={handleChange}
+                    onBlur={handleBlur}
+                    error={touched.title && Boolean(errors.title)}
+                    helperText={touched.title && errors.title}
+                    sx={inputStyle}
+                  />
                 <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
                   <TextField
                     fullWidth
@@ -271,7 +294,7 @@ export default function ScheduleMeetingModal({
                     label="Start Time *"
                     type="time"
                     value={values.startTime}
-                    onChange={handleChange}
+                    onChange={handleTimeChange}
                     onBlur={handleBlur}
                     error={touched.startTime && Boolean(errors.startTime)}
                     helperText={touched.startTime && errors.startTime}
@@ -288,7 +311,7 @@ export default function ScheduleMeetingModal({
                     label="End Time *"
                     type="time"
                     value={values.endTime}
-                    onChange={handleChange}
+                    onChange={handleTimeChange}
                     onBlur={handleBlur}
                     error={touched.endTime && Boolean(errors.endTime)}
                     helperText={touched.endTime && errors.endTime}
@@ -342,27 +365,49 @@ export default function ScheduleMeetingModal({
                     sx={inputStyle}
                     inputProps={{ min: 1 }}
                   />
-                  <Autocomplete
-                    options={users || []}
-                    getOptionLabel={(option) => `${option.firstName || ''} ${option.lastName || ''} (${option.email})`.trim()}
-                    value={users?.find(u => u.id === values.chairpersonId) || null}
-                    onChange={(event, newValue) => {
-                      handleChange({ target: { name: 'chairpersonId', value: newValue?.id || '' } });
-                    }}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        label={isStaff ? "Chairperson (Auto-assigned as organizer)" : "Chairperson *"}
-                        error={touched.chairpersonId && Boolean(errors.chairpersonId)}
-                        helperText={isStaff ? "You are automatically the chairperson" : (touched.chairpersonId && errors.chairpersonId)}
-                        sx={inputStyle}
-                        size="small"
-                        disabled={isStaff}
-                      />
-                    )}
-                    sx={inputStyle}
-                    disabled={isStaff}
-                  />
+                  {(isSystemAdmin(currentUser) || isAdmin(currentUser)) && (
+                    <Autocomplete
+                      options={users || []}
+                      getOptionLabel={(option) => `${option.firstName || ''} ${option.lastName || ''} (${option.email})`.trim()}
+                      value={users?.find(u => u.id === values.chairpersonId) || null}
+                      onChange={(event, newValue) => {
+                        handleChange({ target: { name: 'chairpersonId', value: newValue?.id || '' } });
+                      }}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="Chairperson *"
+                          error={touched.chairpersonId && Boolean(errors.chairpersonId)}
+                          helperText={touched.chairpersonId && errors.chairpersonId}
+                          sx={inputStyle}
+                          size="small"
+                        />
+                      )}
+                      sx={inputStyle}
+                    />
+                  )}
+                  {isStaff && (
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Chairperson (Auto-assigned as organizer)"
+                      value={`${currentUser?.firstName || ''} ${currentUser?.lastName || ''}`.trim()}
+                      disabled
+                      sx={inputStyle}
+                      helperText="You are automatically the chairperson"
+                    />
+                  )}
+                  {isChairperson(currentUser) && (
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Chairperson (Auto-assigned)"
+                      value={`${currentUser?.firstName || ''} ${currentUser?.lastName || ''}`.trim()}
+                      disabled
+                      sx={inputStyle}
+                      helperText="You are the chairperson"
+                    />
+                  )}
                 </Box>
                 <Autocomplete
                   multiple
@@ -466,7 +511,8 @@ export default function ScheduleMeetingModal({
               </Button>
             </DialogActions>
           </Form>
-        )}
+        );
+        }}
       </Formik>
     </Dialog>
   );

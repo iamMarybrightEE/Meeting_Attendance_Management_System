@@ -284,7 +284,7 @@ export default function NotificationsPageContent() {
 
                           <Typography variant="caption" sx={{ color: "#9ca3af", display: "block", mt: 0.5 }}>
                             {notification.created_at
-                              ? `${new Date(notification.created_at).toLocaleDateString()} at ${new Date(notification.created_at).toLocaleTimeString()}`
+                              ? `${new Date(notification.created_at).toLocaleString()} at ${new Date(notification.created_at).toLocaleTimeString()}`
                               : ""}
                           </Typography>
                         </Box>

@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import DashboardLayout from "@/modules/dashboard/layout/dashboardLayout";
 import AttendanceConfirmPageContent from "@/modules/meetings/pages/attendanceConfirmPageContent";
 import { Box, CircularProgress } from "@mui/material";
 
-export default function AttendanceConfirmPage() {
+function AttendanceConfirmContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { currentUser, isLoading } = useAuth();
@@ -41,5 +41,17 @@ export default function AttendanceConfirmPage() {
     <DashboardLayout>
       <AttendanceConfirmPageContent meetingId={meetingId} token={token} />
     </DashboardLayout>
+  );
+}
+
+export default function AttendanceConfirmPage() {
+  return (
+    <Suspense fallback={
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+        <CircularProgress />
+      </Box>
+    }>
+      <AttendanceConfirmContent />
+    </Suspense>
   );
 }

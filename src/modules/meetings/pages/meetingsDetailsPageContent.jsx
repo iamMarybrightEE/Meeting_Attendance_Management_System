@@ -521,7 +521,7 @@ export default function MeetingDetailsPageContent() {
             }
           })()}
 
-          {(isOrganizer || isChairperson || canManage) && <Button startIcon={<Group />} variant="contained" onClick={() => setVisitorModalOpen(true)} sx={{ borderRadius: 2, textTransform: "none", fontWeight: 600, background: "linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%)", color: "#fff", "&:hover": { background: "linear-gradient(135deg, #6d28d9, #7c3aed)" } }}>Add Visitor</Button>}
+          {(isOrganizer || isChairperson || canManage) && meeting?.category === 'external' && <Button startIcon={<Group />} variant="contained" onClick={() => setVisitorModalOpen(true)} sx={{ borderRadius: 2, textTransform: "none", fontWeight: 600, background: "linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%)", color: "#fff", "&:hover": { background: "linear-gradient(135deg, #6d28d9, #7c3aed)" } }}>Add Visitor</Button>}
           
           {canManage && 
           <>
@@ -703,7 +703,7 @@ export default function MeetingDetailsPageContent() {
             <Tabs value={tab} onChange={(_, v) => { setTab(v); setPage(1); }} sx={{ px: 2, borderBottom: "1px solid #e8edf3", "& .MuiTab-root": { textTransform: "none", fontWeight: 500, fontSize: "0.85rem", minHeight: 44 }, "& .Mui-selected": { color: "#004497", fontWeight: 600 }, "& .MuiTabs-indicator": { bgcolor: "#004497" } }}>
               <Tab label={`Attendance (${attendees.length})`} />
               <Tab label={`Appeals (${appeals.length})`} />
-              <Tab label={`External Visitors (${externalParticipants.length})`} />
+              {meeting?.category === 'external' && <Tab label={`External Visitors (${externalParticipants.length})`} />}
             </Tabs>
 
             <TabPanel value={tab} index={0}>
@@ -891,7 +891,7 @@ export default function MeetingDetailsPageContent() {
               )}
             </TabPanel>
 
-            <TabPanel value={tab} index={2}>
+            <TabPanel value={tab} index={meeting?.category === 'external' ? 2 : -1}>
               <Box sx={{ p: 2.5, borderBottom: "1px solid #e8edf3", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>External Visitors</Typography>
                 <Box sx={{ display: "flex", gap: 1 }}>

@@ -30,10 +30,10 @@ export async function GET(request) {
     const dateTo = searchParams.get('date_to');
     const search = (searchParams.get('search') || '').trim();
 
-    // Get user profile to check role
+    // Get user profile to check role and get department details
     const { data: userProfile, error: profileError } = await supabaseAdmin
       .from('profiles')
-      .select('role_id, roles(name)')
+      .select('role_id, roles(name), department')
       .eq('id', user.id)
       .single();
 
@@ -41,6 +41,28 @@ export async function GET(request) {
       console.error('Profile fetch error:', profileError);
       // Continue anyway - user might exist
     }
+
+    // Get the department ID for the user's department name
+    let userDepartmentId = null;
+    if (userProfile?.department) {
+      const { data: deptData, error: deptError } = await supabaseAdmin
+        .from('departments')
+        .select('id')
+        .eq('name', userProfile.department)
+        .single();
+      
+      if (deptError) {
+        console.error('Department lookup error:', deptError);
+      } else {
+        userDepartmentId = deptData?.id;
+      }
+    }
+
+    console.log('User Department Info:', {
+      userId: user.id,
+      deptName: userProfile?.department,
+      deptId: userDepartmentId
+    });
 
     let query = supabaseAdmin
       .from('meetings')
@@ -56,6 +78,14 @@ export async function GET(request) {
       .eq('is_deleted', false)
       .order('date', { ascending: false })
       .range(offset, offset + limit - 1);
+
+    // Role-based meeting visibility filter
+    const userRole = userProfile?.roles?.name;
+    const isSystemAdmin = userRole === 'System Administrator';
+    const isAdmin = userRole === 'Admin';
+
+    // Build the query - all non-system-admin users need to fetch all meetings for client-side filtering
+    // We'll handle role-based filtering after fetching
 
     if (status && ['scheduled', 'ongoing', 'ended', 'cancelled'].includes(status)) {
       query = query.eq('status', status);
@@ -76,10 +106,37 @@ export async function GET(request) {
       query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
     }
 
-    const { data, error: dbError, count } = await query;
+    let { data, error: dbError, count } = await query;
     if (dbError) {
       console.error('Database query error:', dbError);
       return errorResponse(`Database error: ${dbError.message}`);
+    }
+
+    console.log('Raw meetings data count:', data?.length);
+    if (data?.length > 0) {
+      console.log('First meeting department_id:', data[0]?.department_id);
+    }
+
+    // Client-side role-based filtering
+    if (data && !isSystemAdmin) {
+      if (isAdmin) {
+        // Admin sees all meetings in their department
+        const filteredData = data.filter(meeting => {
+          const matches = meeting.department_id === userDepartmentId;
+          console.log(`Meeting ${meeting.id}: deptId=${meeting.department_id}, userDeptId=${userDepartmentId}, matches=${matches}`);
+          return matches;
+        });
+        console.log(`Admin filter: ${data.length} meetings -> ${filteredData.length} meetings`);
+        data = filteredData;
+      } else if (userRole === 'Chairperson' || userRole === 'Staff') {
+        // Chairperson and Staff only see meetings they are invited to
+        data = data.filter(meeting => {
+          return meeting.meeting_attendees?.some(attendee => {
+            const attendeeUserId = typeof attendee.user_id === 'object' ? attendee.user_id?.id : attendee.user_id;
+            return attendeeUserId === user.id;
+          });
+        });
+      }
     }
 
     return successResponse({ meetings: data || [], total: count || 0, limit, offset });

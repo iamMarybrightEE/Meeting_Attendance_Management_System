@@ -603,7 +603,9 @@ export default function DashboardLayout({ children }) {
                           </Typography>
                           <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.5 }}>
                             <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>
-                              {getRelativeTime(new Date(displayTime))}
+                              {displayTime 
+                                ? `${new Date(displayTime).toLocaleDateString()} ${new Date(displayTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true })}`
+                                : ""}
                             </Typography>
                             {(notif.module || notif.type) && (
                               <Chip
