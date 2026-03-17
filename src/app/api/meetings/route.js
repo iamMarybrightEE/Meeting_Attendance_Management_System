@@ -69,8 +69,9 @@ export async function GET(request) {
       .select(
         `
           id, title, description, date, start_time, end_time, type, category,
-          organizer_id, department_id, location, status, created_at, updated_at,
+          organizer_id, chairperson_id, department_id, location, status, created_at, updated_at,
           organizer_id(id, first_name, last_name, email),
+          chairperson_id(id, first_name, last_name, email),
           meeting_attendees(id, user_id, status, profiles(first_name, last_name, department))
         `,
         { count: 'exact' }
@@ -128,15 +129,62 @@ export async function GET(request) {
         });
         console.log(`Admin filter: ${data.length} meetings -> ${filteredData.length} meetings`);
         data = filteredData;
-      } else if (userRole === 'Chairperson' || userRole === 'Staff') {
-        // Chairperson and Staff only see meetings they are invited to
+      } else if (userRole === 'Chairperson') {
+        // Chairperson sees meetings they organized OR meetings they are invited to
         data = data.filter(meeting => {
-          return meeting.meeting_attendees?.some(attendee => {
+          const organizerId = typeof meeting.organizer_id === 'object' ? meeting.organizer_id?.id : meeting.organizer_id;
+          const isOrganizer = organizerId === user.id;
+          const isAttendee = meeting.meeting_attendees?.some(attendee => {
             const attendeeUserId = typeof attendee.user_id === 'object' ? attendee.user_id?.id : attendee.user_id;
             return attendeeUserId === user.id;
           });
+          return isOrganizer || isAttendee;
+        });
+      } else if (userRole === 'Staff') {
+        // Staff sees meetings they are invited to OR meetings they created/organized
+        data = data.filter(meeting => {
+          const organizerId = typeof meeting.organizer_id === 'object' ? meeting.organizer_id?.id : meeting.organizer_id;
+          const isOrganizer = organizerId === user.id;
+          const isAttendee = meeting.meeting_attendees?.some(attendee => {
+            const attendeeUserId = typeof attendee.user_id === 'object' ? attendee.user_id?.id : attendee.user_id;
+            return attendeeUserId === user.id;
+          });
+          return isOrganizer || isAttendee;
         });
       }
+    }
+
+    // Expand chairperson_id for each meeting if it's just an ID
+    if (data && data.length > 0) {
+      const expandedData = await Promise.all(data.map(async (meeting) => {
+        let expandedMeeting = { ...meeting };
+        
+        // Expand chairperson if it's just an ID string
+        if (meeting.chairperson_id && typeof meeting.chairperson_id === 'string') {
+          const { data: chairperson } = await supabaseAdmin
+            .from('profiles')
+            .select('id, first_name, last_name, email')
+            .eq('id', meeting.chairperson_id)
+            .single()
+            .catch(() => ({ data: null }));
+          
+          if (chairperson) expandedMeeting.chairperson_id = chairperson;
+        }
+        
+        return expandedMeeting;
+      }));
+      
+      // Replace data with expanded version
+      data = expandedData;
+    }
+
+    if (data && data.length > 0) {
+      console.log('GET /api/meetings - Sample meeting with chairperson:', {
+        id: data[0]?.id,
+        title: data[0]?.title,
+        chairperson_id: data[0]?.chairperson_id,
+        organizer_id: data[0]?.organizer_id,
+      });
     }
 
     return successResponse({ meetings: data || [], total: count || 0, limit, offset });
@@ -218,13 +266,30 @@ export async function POST(request) {
     created_by: user.id,
   };
 
+  console.log('POST /api/meetings - Creating meeting:', {
+    chairperson_id: newMeeting.chairperson_id,
+    organizer_id: newMeeting.organizer_id,
+    body_chairperson_id: body.chairperson_id,
+    request_body_full: body,
+  });
+
   const { data: meeting, error: createError } = await supabaseAdmin
     .from('meetings')
     .insert([newMeeting])
     .select('*')
     .single();
 
-  if (createError) return errorResponse(createError.message);
+  if (createError) {
+    console.error('POST /api/meetings - INSERT ERROR:', createError);
+    return errorResponse(createError.message);
+  }
+
+  console.log('POST /api/meetings - Meeting created in DB:', {
+    chairperson_id: meeting?.chairperson_id,
+    organizer_id: meeting?.organizer_id,
+    id: meeting?.id,
+    full_meeting: meeting,
+  });
 
   // Add meeting attendees
   if (body.attendee_ids && body.attendee_ids.length > 0) {

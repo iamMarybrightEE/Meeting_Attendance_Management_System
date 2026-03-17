@@ -173,6 +173,14 @@ export async function PATCH(request, { params }) {
 
   if (Object.keys(allowed).length === 0) return errorResponse('No valid fields to update', 400);
 
+  console.log('PATCH /api/meetings/[id] - Updating meeting:', {
+    meeting_id: id,
+    chairperson_id_in_request: body.chairperson_id,
+    chairperson_id_allowed: allowed.chairperson_id,
+    all_allowed_fields: allowed,
+    request_body_full: body,
+  });
+
   // Update attendees if provided
   if (body.attendee_ids && Array.isArray(body.attendee_ids)) {
     // Delete existing attendees
@@ -212,7 +220,17 @@ export async function PATCH(request, { params }) {
     .select('*')
     .single();
 
-  if (updateError) return errorResponse(updateError.message);
+  if (updateError) {
+    console.error('PATCH /api/meetings/[id] - UPDATE ERROR:', updateError);
+    return errorResponse(updateError.message);
+  }
+
+  console.log('PATCH /api/meetings/[id] - Meeting updated in DB:', {
+    chairperson_id: updated?.chairperson_id,
+    organizer_id: updated?.organizer_id,
+    id: updated?.id,
+    full_meeting: updated,
+  });
 
   // Mark non-confirmed attendees as missed when meeting ends
   if (allowed.status === 'ended') {

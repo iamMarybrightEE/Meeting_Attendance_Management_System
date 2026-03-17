@@ -165,7 +165,9 @@ export default function EditMeetingModal({ open, onClose, selectedMeeting, onSuc
           duration: selectedMeeting?.duration ? Number(selectedMeeting.duration) : "",
           type: selectedMeeting?.type || "team",
           category: selectedMeeting?.category || "internal",
-          chairpersonId: selectedMeeting?.chairperson_id || "",
+          chairpersonId: typeof selectedMeeting?.chairperson_id === 'object' 
+            ? selectedMeeting?.chairperson_id?.id || ""
+            : selectedMeeting?.chairperson_id || "",
           attendeeIds: selectedMeeting?.meeting_attendees?.map(a => {
             if (typeof a.user_id === 'object') {
               return a.user_id.id;
@@ -179,7 +181,7 @@ export default function EditMeetingModal({ open, onClose, selectedMeeting, onSuc
         onSubmit={handleSubmit}
         enableReinitialize={true}
       >
-        {({ values, errors, touched, handleChange, handleBlur, isSubmitting, setValues }) => {
+        {({ values, errors, touched, handleChange, handleBlur, isSubmitting, setValues, setFieldValue }) => {
           const handleTimeChange = (e) => {
             const { name, value } = e.target;
             handleChange(e);
@@ -338,8 +340,10 @@ export default function EditMeetingModal({ open, onClose, selectedMeeting, onSuc
                   getOptionLabel={(option) => `${option.firstName || ''} ${option.lastName || ''} (${option.email})`.trim()}
                   value={users?.find(u => u.id === values.chairpersonId) || null}
                   onChange={(event, newValue) => {
-                    handleChange({ target: { name: 'chairpersonId', value: newValue?.id || '' } });
+                    console.log('Edit: Chairperson selected:', newValue?.id, newValue);
+                    setFieldValue('chairpersonId', newValue?.id || '');
                   }}
+                  isOptionEqualToValue={(option, value) => option?.id === value?.id}
                   renderInput={(params) => (
                     <TextField
                       {...params}
@@ -359,8 +363,7 @@ export default function EditMeetingModal({ open, onClose, selectedMeeting, onSuc
                   getOptionLabel={(option) => `${option.firstName || ''} ${option.lastName || ''} (${option.email})`.trim()}
                   value={values.attendeeIds.map(id => users?.find(u => u.id === id)).filter(Boolean)}
                   onChange={(event, newValue) => {
-                    const newIds = newValue.map(user => user.id);
-                    handleChange({ target: { name: 'attendeeIds', value: newIds } });
+                    setFieldValue('attendeeIds', newValue.map(user => user.id));
                   }}
                   renderInput={(params) => (
                     <TextField

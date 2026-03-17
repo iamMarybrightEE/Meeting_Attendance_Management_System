@@ -203,5 +203,5 @@ export function getMeetingsFilterForUser(user) {
 // Get user's chaired meetings
 export function getUserChairedMeetings(meetings, userId) {
   if (!meetings || !userId) return [];
-  return meetings.filter(m => (m.chairperson_user_id === userId) || (m.organizer_id?.id === userId));
+  return meetings.filter(m => (m.chairperson_id?.id === userId) || (m.chairperson_id === userId));
 }

@@ -76,6 +76,30 @@ export default function MeetingDetailsPageContent() {
     }
   }, [meetingId]);
 
+  // Poll for appeal status updates in real-time
+  useEffect(() => {
+    if (!meetingId || !meeting || meeting.status !== 'ended') return;
+
+    const pollAppeals = async () => {
+      try {
+        const response = await fetch(`/api/meetings/${meetingId}/appeals`, {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('mams_access_token')}` },
+        });
+        if (response.ok) {
+          const appealsData = await response.json();
+          setAppeals((appealsData.appeals || []).filter(a => a));
+        }
+      } catch (err) {
+        console.log('Error polling appeals:', err);
+      }
+    };
+
+    // Poll every 3 seconds for real-time feedback
+    const pollInterval = setInterval(pollAppeals, 3000);
+    
+    return () => clearInterval(pollInterval);
+  }, [meetingId, meeting]);
+
   const fetchMeetingData = async () => {
     try {
       setLoading(true);
@@ -340,7 +364,7 @@ export default function MeetingDetailsPageContent() {
           <div class="info-row"><div class="info-label">Meeting:</div><div>${meeting.title || '—'}</div></div>
           <div class="info-row"><div class="info-label">Date:</div><div>${meeting.date ? new Date(meeting.date).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" }) : '—'}</div></div>
           <div class="info-row"><div class="info-label">Time:</div><div>${meeting.start_time ? meeting.start_time + ' - ' + (meeting.end_time || '') : '—'}</div></div>
-          <div class="info-row"><div class="info-label">Chairperson:</div><div>${meeting.organizer_id ? (meeting.organizer_id.first_name + ' ' + meeting.organizer_id.last_name) : '—'}</div></div>
+          <div class="info-row"><div class="info-label">Chairperson:</div><div>${meeting.chairperson_id ? (meeting.chairperson_id.first_name + ' ' + meeting.chairperson_id.last_name) : '—'}</div></div>
         </div>
         <p class="summary">Exported on ${exportDate} | Total Attendees: ${attendees.length}</p>
         
@@ -493,26 +517,53 @@ export default function MeetingDetailsPageContent() {
           {(meetingStatus === "ended" || meetingStatus === "cancelled") && userIsMissed && (() => {
             const userAppeal = appeals.find(a => a.user_id === currentUser.id);
             if (userAppeal) {
-              // If appeal exists, show status and feedback, but no button
+              // If appeal exists, show status and feedback with enhanced styling
               return (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Typography variant="body2" sx={{ color: "#6b7280", fontWeight: 500 }}>Appeal Status:</Typography>
-                  <Chip
-                    label={userAppeal.status === 'approved' ? 'Accepted' : userAppeal.status === 'rejected' ? 'Rejected' : 'Pending'}
-                    sx={{
-                      borderRadius: 1.5,
-                      fontSize: "0.85rem",
-                      fontWeight: 600,
-                      bgcolor: userAppeal.status === 'approved' ? '#e8f5e9' : userAppeal.status === 'rejected' ? '#fde8e8' : '#fff3cd',
-                      color: userAppeal.status === 'approved' ? '#2e7d32' : userAppeal.status === 'rejected' ? '#f74a4d' : '#856404',
-                    }}
-                  />
+                <Box sx={{ 
+                  display: 'flex', 
+                  flexDirection: 'column',
+                  gap: 2,
+                  p: 2.5,
+                  borderRadius: 2.5,
+                  border: `2px solid ${userAppeal.status === 'approved' ? '#4caf50' : userAppeal.status === 'rejected' ? '#f44336' : '#ff9800'}`,
+                  bgcolor: userAppeal.status === 'approved' ? '#f1f8e9' : userAppeal.status === 'rejected' ? '#ffebee' : '#fff8e1',
+                }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Typography variant="body2" sx={{ color: "#6b7280", fontWeight: 600 }}>Appeal Status:</Typography>
+                    <Chip
+                      label={userAppeal.status === 'approved' ? 'Accepted' : userAppeal.status === 'rejected' ? 'Rejected' : 'Pending Review'}
+                      sx={{
+                        borderRadius: 1.5,
+                        fontSize: "0.9rem",
+                        fontWeight: 700,
+                        bgcolor: userAppeal.status === 'approved' ? '#4caf50' : userAppeal.status === 'rejected' ? '#f44336' : '#ff9800',
+                        color: '#fff',
+                        minWidth: '120px',
+                        justifyContent: 'center'
+                      }}
+                    />
+                  </Box>
+                  
                   {userAppeal.review_notes && (
-                    <Tooltip title={`Feedback: ${userAppeal.review_notes}`}>
-                      <Typography variant="caption" sx={{ color: "#9ca3af", fontStyle: "italic", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <Box sx={{ 
+                      p: 1.5,
+                      borderRadius: 1.5,
+                      backgroundColor: '#f5f5f5',
+                      borderLeft: `4px solid ${userAppeal.status === 'approved' ? '#4caf50' : userAppeal.status === 'rejected' ? '#f44336' : '#ff9800'}`
+                    }}>
+                      <Typography variant="caption" sx={{ color: "#666666", fontWeight: 500, display: 'block', mb: 0.5 }}>
+                        Reviewer Feedback:
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: "#333333", fontWeight: 500 }}>
                         {userAppeal.review_notes}
                       </Typography>
-                    </Tooltip>
+                    </Box>
+                  )}
+                  
+                  {userAppeal.reviewed_at && (
+                    <Typography variant="caption" sx={{ color: "#9ca3af", fontSize: '0.75rem' }}>
+                      Reviewed on {new Date(userAppeal.reviewed_at).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </Typography>
                   )}
                 </Box>
               );
@@ -540,7 +591,7 @@ export default function MeetingDetailsPageContent() {
                 { label: "Date", value: formatDate(meeting.date), icon: <Event sx={{ fontSize: 18 }} /> },
                 { label: "Time", value: `${formatTime(meeting.start_time)} - ${formatTime(meeting.end_time)}`, sub: `(${calculateDuration()} min)`, icon: <AccessTime sx={{ fontSize: 18 }} /> },
                 { label: "Location", value: meeting.location || 'N/A', icon: <LocationOn sx={{ fontSize: 18 }} /> },
-                { label: "Chairperson", value: meeting.organizer_id?.first_name ? `${meeting.organizer_id.first_name} ${meeting.organizer_id.last_name}` : 'N/A', icon: <Person sx={{ fontSize: 18 }} /> }
+                { label: "Chairperson", value: meeting.chairperson_id?.first_name ? `${meeting.chairperson_id.first_name} ${meeting.chairperson_id.last_name}` : 'N/A', icon: <Person sx={{ fontSize: 18 }} /> }
             ].map((item) => (
                 <Paper key={item.label} elevation={0} sx={{ p: 2, borderRadius: 2, border: "1px solid #e8edf3" }}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>

@@ -115,6 +115,7 @@ export default function ScheduleMeetingModal({
   const handleSubmit = async (values, { setSubmitting, resetForm }) => {
     setApiError("");
     try {
+      
       const response = await fetch('/api/meetings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('mams_access_token')}` },
@@ -211,7 +212,7 @@ export default function ScheduleMeetingModal({
         validationSchema={dynamicSchema}
         onSubmit={handleSubmit}
       >
-        {({ values, errors, touched, handleChange, handleBlur, isSubmitting, setValues }) => {
+        {({ values, errors, touched, handleChange, handleBlur, isSubmitting, setValues, setFieldValue }) => {
           const handleTimeChange = (e) => {
             const { name, value } = e.target;
             handleChange(e);
@@ -371,8 +372,10 @@ export default function ScheduleMeetingModal({
                       getOptionLabel={(option) => `${option.firstName || ''} ${option.lastName || ''} (${option.email})`.trim()}
                       value={users?.find(u => u.id === values.chairpersonId) || null}
                       onChange={(event, newValue) => {
-                        handleChange({ target: { name: 'chairpersonId', value: newValue?.id || '' } });
+                       
+                        setFieldValue('chairpersonId', newValue?.id || '');
                       }}
+                      isOptionEqualToValue={(option, value) => option?.id === value?.id}
                       renderInput={(params) => (
                         <TextField
                           {...params}
@@ -415,8 +418,7 @@ export default function ScheduleMeetingModal({
                   getOptionLabel={(option) => `${option.firstName || ''} ${option.lastName || ''} (${option.email})`.trim()}
                   value={values.attendeeIds.map(id => users?.find(u => u.id === id)).filter(Boolean)}
                   onChange={(event, newValue) => {
-                    const newIds = newValue.map(user => user.id);
-                    handleChange({ target: { name: 'attendeeIds', value: newIds } });
+                    setFieldValue('attendeeIds', newValue.map(user => user.id));
                   }}
                   renderInput={(params) => (
                     <TextField

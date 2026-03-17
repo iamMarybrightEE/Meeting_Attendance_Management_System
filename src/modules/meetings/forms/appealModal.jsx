@@ -21,7 +21,7 @@ import { Close, Warning, Upload, AttachFile } from "@mui/icons-material";
 
 const appealSchema = Yup.object({
   reason: Yup.string().min(10, "Reason must be at least 10 characters").required("Reason is required"),
-  document: Yup.mixed().optional(),
+  document: Yup.mixed().nullable().optional(),
 });
 
 const inputStyle = {

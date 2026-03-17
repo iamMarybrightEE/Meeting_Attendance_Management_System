@@ -121,7 +121,7 @@ export default function MeetingsPageContent() {
       }
       
       setMeetings(data.meetings || []);
-      
+    
       if (data.meetings?.length === 0) {
         console.warn('No meetings returned from API');
       }
@@ -190,9 +190,24 @@ export default function MeetingsPageContent() {
 
   const handleViewDetails = (meeting) => router.push(`/meetings/${meeting.id}`);
   
-  const handleEdit = (meeting) => {
-    setSelectedMeeting(meeting);
-    setEditModalOpen(true);
+  const handleEdit = async (meeting) => {
+    try {
+      const token = localStorage.getItem('mams_access_token');
+      const response = await fetch(`/api/meetings/${meeting.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch meeting details');
+      }
+
+      const data = await response.json();
+      setSelectedMeeting(data.meeting);
+      setEditModalOpen(true);
+    } catch (err) {
+      console.error('Error fetching meeting details:', err);
+      setSnackbar({ open: true, message: 'Failed to load meeting details', severity: 'error' });
+    }
   };
 
   const handleDelete = (meeting) => {
@@ -240,7 +255,7 @@ export default function MeetingsPageContent() {
       `${m.start_time || ""} - ${m.end_time || ""}`,
       m.type || "",
       m.category || "",
-      m.organizer_id ? `${m.organizer_id.first_name} ${m.organizer_id.last_name}` : "",
+      m.chairperson_id ? `${m.chairperson_id.first_name} ${m.chairperson_id.last_name}` : "",
       m.location || "",
       m.status || "",
     ]);
@@ -269,7 +284,7 @@ export default function MeetingsPageContent() {
         <td>${m.start_time || "—"} - ${m.end_time || "—"}</td>
         <td>${m.type || "—"}</td>
         <td>${m.category || "—"}</td>
-        <td>${m.organizer_id ? `${m.organizer_id.first_name} ${m.organizer_id.last_name}` : "—"}</td>
+        <td>${m.chairperson_id ? `${m.chairperson_id.first_name} ${m.chairperson_id.last_name}` : "—"}</td>
         <td>${m.location || "—"}</td>
         <td>${m.status || "—"}</td>
       </tr>
@@ -690,7 +705,15 @@ export default function MeetingsPageContent() {
                     <TableCell sx={{ minWidth: 200 }}>
                       <Typography
                         variant="body2"
-                        sx={{ fontWeight: 600, color: "#1a1a2e" }}
+                        onClick={() => handleViewDetails(meeting)}
+                        sx={{ 
+                          fontWeight: 600, 
+                          cursor: "pointer",
+                          "&:hover": {
+                            textDecoration: "underline",
+                            color: "#004497",
+                          }
+                        }}
                       >
                         {meeting.title}
                       </Typography>
@@ -759,7 +782,7 @@ export default function MeetingsPageContent() {
                       >
                         <Person sx={{ fontSize: 16, color: "#9ca3af" }} />
                         <Typography variant="body2">
-                          {meeting.organizer_id ? `${meeting.organizer_id.first_name} ${meeting.organizer_id.last_name}` : 'N/A'}
+                          {meeting.chairperson_id ? `${meeting.chairperson_id.first_name} ${meeting.chairperson_id.last_name}` : 'N/A'}
                         </Typography>
                       </Box>
                     </TableCell>
@@ -968,7 +991,7 @@ export default function MeetingsPageContent() {
 
                               <Typography variant="body2">
                                 
-                                {meeting.organizer_id ? `Chaired by: ${meeting.organizer_id.first_name} ${meeting.organizer_id.last_name}` : 'N/A'}
+                                {meeting.chairperson_id ? `Chaired by: ${meeting.chairperson_id.first_name} ${meeting.chairperson_id.last_name}` : 'N/A'}
                               </Typography>
                               
                             </Box>
@@ -982,6 +1005,24 @@ export default function MeetingsPageContent() {
               )}
             </Box>
           </>
+        )}
+
+        {/* Pagination */}
+        {filteredMeetings.length > 0 && (
+          <Box sx={{ p: 2, display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #e8edf3" }}>
+            <Typography variant="body2" color="text.secondary">
+              Showing {Math.min(((page - 1) * ROWS_PER_PAGE) + 1, filteredMeetings.length)} to {Math.min(page * ROWS_PER_PAGE, filteredMeetings.length)} of {filteredMeetings.length}
+            </Typography>
+            {totalPages > 1 && (
+              <Pagination
+                count={totalPages}
+                page={page}
+                onChange={(_, v) => setPage(v)}
+                size="small"
+                sx={{ "& .MuiPaginationItem-root": { borderRadius: 1.5 } }}
+              />
+            )}
+          </Box>
         )}
       </Paper>
 
