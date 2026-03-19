@@ -100,8 +100,8 @@ export default function AttendancePageContent() {
               date: meeting.date,
               start_time: meeting.start_time,
               end_time: meeting.end_time,
-              chairperson: meeting.organizer_id?.first_name 
-                ? `${meeting.organizer_id.first_name} ${meeting.organizer_id.last_name}` 
+              chairperson: meeting.chairperson_id?.first_name 
+                ? `${meeting.chairperson_id.first_name} ${meeting.chairperson_id.last_name}` 
                 : 'N/A',
               location: meeting.location,
               status: meeting.status === 'scheduled' || meeting.status === 'ongoing' ? 'pending' : staffAttendance.status,
@@ -119,8 +119,8 @@ export default function AttendancePageContent() {
                 date: meeting.date,
                 start_time: meeting.start_time,
                 end_time: meeting.end_time,
-                chairperson: meeting.organizer_id?.first_name 
-                  ? `${meeting.organizer_id.first_name} ${meeting.organizer_id.last_name}` 
+                chairperson: meeting.chairperson_id?.first_name 
+                  ? `${meeting.chairperson_id.first_name} ${meeting.chairperson_id.last_name}` 
                   : 'N/A',
                 location: meeting.location,
                 status: meeting.status === 'scheduled' || meeting.status === 'ongoing' ? 'pending' : attendee.status,
@@ -138,8 +138,8 @@ export default function AttendancePageContent() {
               date: meeting.date,
               start_time: meeting.start_time,
               end_time: meeting.end_time,
-              chairperson: meeting.organizer_id?.first_name 
-                ? `${meeting.organizer_id.first_name} ${meeting.organizer_id.last_name}` 
+              chairperson: meeting.chairperson_id?.first_name 
+                ? `${meeting.chairperson_id.first_name} ${meeting.chairperson_id.last_name}` 
                 : 'N/A',
               location: meeting.location,
               status: meeting.status === 'scheduled' || meeting.status === 'ongoing' ? 'pending' : attendee.status,
