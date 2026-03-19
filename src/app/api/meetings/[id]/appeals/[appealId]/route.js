@@ -27,7 +27,7 @@ export async function GET(request, { params }) {
   // Check access
   const { data: meeting } = await supabaseAdmin
     .from('meetings')
-    .select('organizer_id')
+    .select('organizer_id, chairperson_id')
     .eq('id', meetingId)
     .single();
 
@@ -38,10 +38,11 @@ export async function GET(request, { params }) {
     .single();
 
   const isAdmin = userProfile?.roles?.name === 'System Administrator' || userProfile?.roles?.name === 'Admin';
+  const isChairperson = userProfile?.roles?.name === 'Chairperson' || meeting?.chairperson_id === user.id;
   const isOrganizer = meeting?.organizer_id === user.id;
   const isAppealant = appeal.user_id === user.id;
 
-  if (!isAdmin && !isOrganizer && !isAppealant) {
+  if (!isAdmin && !isChairperson && !isOrganizer && !isAppealant) {
     return forbiddenResponse('You do not have access to this appeal');
   }
 
@@ -74,10 +75,10 @@ export async function PATCH(request, { params }) {
     return errorResponse('Can only review pending appeals', 400);
   }
 
-  // Check if user is organizer or admin
+  // Check if user is organizer, chairperson, or admin
   const { data: meeting } = await supabaseAdmin
     .from('meetings')
-    .select('organizer_id')
+    .select('organizer_id, chairperson_id')
     .eq('id', meetingId)
     .single();
 
@@ -88,10 +89,11 @@ export async function PATCH(request, { params }) {
     .single();
 
   const isAdmin = userProfile?.roles?.name === 'System Administrator' || userProfile?.roles?.name === 'Admin';
+  const isChairperson = userProfile?.roles?.name === 'Chairperson' || meeting?.chairperson_id === user.id;
   const isOrganizer = meeting?.organizer_id === user.id;
 
-  if (!isAdmin && !isOrganizer) {
-    return forbiddenResponse('Only organizer or admin can review appeals');
+  if (!isAdmin && !isChairperson && !isOrganizer) {
+    return forbiddenResponse('Only organizer, chairperson, or admin can review appeals');
   }
 
   if (!['approved', 'rejected'].includes(body.status)) {

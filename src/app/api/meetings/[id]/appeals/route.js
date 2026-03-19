@@ -21,7 +21,7 @@ export async function GET(request, { params }) {
   // Check meeting exists and user has access
   const { data: meeting, error: meetingError } = await supabaseAdmin
     .from('meetings')
-    .select('organizer_id')
+    .select('organizer_id, chairperson_id')
     .eq('id', id)
     .eq('is_deleted', false)
     .single();
@@ -35,11 +35,12 @@ export async function GET(request, { params }) {
     .single();
 
   const isAdmin = userProfile?.roles?.name === 'System Administrator' || userProfile?.roles?.name === 'Admin';
+  const isChairperson = userProfile?.roles?.name === 'Chairperson' || meeting.chairperson_id === user.id;
   const isOrganizer = meeting.organizer_id === user.id;
 
-  // Allow organizers, admins, or the user viewing their own appeals
-  // For non-admin/organizer users, they can only see appeals they created
-  if (!isAdmin && !isOrganizer) {
+  // Allow organizers, admins, chairpersons, or the user viewing their own appeals
+  // For non-admin/organizer/chairperson users, they can only see appeals they created
+  if (!isAdmin && !isOrganizer && !isChairperson) {
     // User can only view appeals they submitted
     // Just continue and filter by user_id below
   }
@@ -57,8 +58,8 @@ export async function GET(request, { params }) {
     .eq('meeting_id', id)
     .order('created_at', { ascending: false });
 
-  // If user is not admin/organizer, only show their own appeals
-  if (!isAdmin && !isOrganizer) {
+  // If user is not admin/organizer/chairperson, only show their own appeals
+  if (!isAdmin && !isOrganizer && !isChairperson) {
     query = query.eq('user_id', user.id);
   }
 
