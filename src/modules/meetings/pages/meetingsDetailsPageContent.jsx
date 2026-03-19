@@ -514,63 +514,7 @@ export default function MeetingDetailsPageContent() {
             }
           }} sx={{ borderRadius: 2, textTransform: "none", fontWeight: 600, background: "linear-gradient(135deg, #f74a4d 0%, #d32f2f 100%)", "&:hover": { background: "linear-gradient(135deg, #c62828, #b71c1c)" } }}>End Meeting</Button>}
 
-          {(meetingStatus === "ended" || meetingStatus === "cancelled") && userIsMissed && (() => {
-            const userAppeal = appeals.find(a => a.user_id === currentUser.id);
-            if (userAppeal) {
-              // If appeal exists, show status and feedback with enhanced styling
-              return (
-                <Box sx={{ 
-                  display: 'flex', 
-                  flexDirection: 'column',
-                  gap: 2,
-                  p: 2.5,
-                  borderRadius: 2.5,
-                  border: `2px solid ${userAppeal.status === 'approved' ? '#4caf50' : userAppeal.status === 'rejected' ? '#f44336' : '#ff9800'}`,
-                  bgcolor: userAppeal.status === 'approved' ? '#f1f8e9' : userAppeal.status === 'rejected' ? '#ffebee' : '#fff8e1',
-                }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <Typography variant="body2" sx={{ color: "#6b7280", fontWeight: 600 }}>Appeal Status:</Typography>
-                    <Chip
-                      label={userAppeal.status === 'approved' ? 'Accepted' : userAppeal.status === 'rejected' ? 'Rejected' : 'Pending Review'}
-                      sx={{
-                        borderRadius: 1.5,
-                        fontSize: "0.9rem",
-                        fontWeight: 700,
-                        bgcolor: userAppeal.status === 'approved' ? '#4caf50' : userAppeal.status === 'rejected' ? '#f44336' : '#ff9800',
-                        color: '#fff',
-                        minWidth: '120px',
-                        justifyContent: 'center'
-                      }}
-                    />
-                  </Box>
-                  
-                  {userAppeal.review_notes && (
-                    <Box sx={{ 
-                      p: 1.5,
-                      borderRadius: 1.5,
-                      backgroundColor: '#f5f5f5',
-                      borderLeft: `4px solid ${userAppeal.status === 'approved' ? '#4caf50' : userAppeal.status === 'rejected' ? '#f44336' : '#ff9800'}`
-                    }}>
-                      <Typography variant="caption" sx={{ color: "#666666", fontWeight: 500, display: 'block', mb: 0.5 }}>
-                        Reviewer Feedback:
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: "#333333", fontWeight: 500 }}>
-                        {userAppeal.review_notes}
-                      </Typography>
-                    </Box>
-                  )}
-                  
-                  {userAppeal.reviewed_at && (
-                    <Typography variant="caption" sx={{ color: "#9ca3af", fontSize: '0.75rem' }}>
-                      Reviewed on {new Date(userAppeal.reviewed_at).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                    </Typography>
-                  )}
-                </Box>
-              );
-            } else {
-              return <Button startIcon={<Warning />} variant="contained" onClick={() => setAppealModalOpen(true)} sx={{ borderRadius: 2, textTransform: "none", fontWeight: 600, background: "linear-gradient(135deg, #f49937 0%, #f0932b 100%)", color: "#fff", "&:hover": { background: "linear-gradient(135deg, #d67a1a, #d67a1a)" } }}>Appeal</Button>;
-            }
-          })()}
+          
 
           {(isOrganizer || isChairperson || canManage) && meeting?.category === 'external' && <Button startIcon={<Group />} variant="contained" onClick={() => setVisitorModalOpen(true)} sx={{ borderRadius: 2, textTransform: "none", fontWeight: 600, background: "linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%)", color: "#fff", "&:hover": { background: "linear-gradient(135deg, #6d28d9, #7c3aed)" } }}>Add Visitor</Button>}
           
@@ -621,7 +565,101 @@ export default function MeetingDetailsPageContent() {
                     {meeting.description || "No description"}
                 </Typography>
             </Paper>
-          {userAttendanceRecord && !canManage && (
+            {/* appeal status */}
+            
+              {(() => {
+                if (meetingStatus !== "ended" && meetingStatus !== "cancelled") return null;
+                if (!currentUser?.id) return null;
+                // Handle both cases where user_id might be an object or string
+                const userAppeal = appeals.find(a => (a.user_id === currentUser.id || a.user_id?.id === currentUser.id));
+                if (!userAppeal && !userIsMissed) return null;
+                
+                if (userAppeal) {
+              // If appeal exists, show status and feedback with enhanced styling
+              return (
+                <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: "1px solid #e8edf3", mb: 3 }}>
+                <Box sx={{ 
+                  display: 'flex', 
+                  flexDirection: 'column',
+                  gap: 2,
+                  p: 2.5,
+                  borderRadius: 2.5,
+                  border: `2px solid ${userAppeal.status === 'approved' ? '#4caf50' : userAppeal.status === 'rejected' ? '#f44336' : '#ff9800'}`,
+                  bgcolor: userAppeal.status === 'approved' ? '#f1f8e9' : userAppeal.status === 'rejected' ? '#ffebee' : '#fff8e1',
+                }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Typography variant="body2" sx={{ color: "#6b7280", fontWeight: 600 }}>Appeal Status:</Typography>
+                    <Chip
+                      label={userAppeal.status === 'approved' ? 'Accepted' : userAppeal.status === 'rejected' ? 'Rejected' : 'Pending Review'}
+                      sx={{
+                        borderRadius: 1.5,
+                        fontSize: "0.9rem",
+                        fontWeight: 700,
+                        bgcolor: userAppeal.status === 'approved' ? '#4caf50' : userAppeal.status === 'rejected' ? '#f44336' : '#ff9800',
+                        color: '#fff',
+                        minWidth: '120px',
+                        justifyContent: 'center'
+                      }}
+                    />
+                  </Box>
+                  
+                  {userAppeal.status === 'pending' && (
+                    <Box sx={{ 
+                      p: 1.5,
+                      borderRadius: 1.5,
+                      backgroundColor: '#fff8e1',
+                      borderLeft: '4px solid #ff9800',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1.5
+                    }}>
+                      <CircularProgress size={20} sx={{ color: '#ff9800' }} />
+                      <Box>
+                        <Typography variant="caption" sx={{ color: "#666666", fontWeight: 500, display: 'block', mb: 0.25 }}>
+                          Under Review
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: "#555555", fontWeight: 500 }}>
+                          Your appeal is being reviewed by the administration.
+                        </Typography>
+                      </Box>
+                    </Box>
+                  )}
+
+                  {userAppeal.review_notes && (
+                    <Box sx={{ 
+                      p: 1.5,
+                      borderRadius: 1.5,
+                      backgroundColor: '#f5f5f5',
+                      borderLeft: `4px solid ${userAppeal.status === 'approved' ? '#4caf50' : userAppeal.status === 'rejected' ? '#f44336' : '#ff9800'}`
+                    }}>
+                      <Typography variant="caption" sx={{ color: "#666666", fontWeight: 500, display: 'block', mb: 0.5 }}>
+                        Reviewer Feedback:
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: "#333333", fontWeight: 500 }}>
+                        {userAppeal.review_notes}
+                      </Typography>
+                    </Box>
+                  )}
+                  
+                  <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <Typography variant="caption" sx={{ color: "#9ca3af", fontSize: '0.75rem' }}>
+                      Submitted: {new Date(userAppeal.created_at).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </Typography>
+                    {userAppeal.reviewed_at && (
+                      <Typography variant="caption" sx={{ color: "#9ca3af", fontSize: '0.75rem' }}>
+                        Reviewed on {new Date(userAppeal.reviewed_at).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </Typography>
+                    )}
+                  </Box>
+                </Box>
+                </Paper>
+              );
+            } else if (userIsMissed) {
+              return <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: "1px solid #e8edf3", mb: 3 }}><Button startIcon={<Warning />} variant="contained" onClick={() => setAppealModalOpen(true)} sx={{ borderRadius: 2, textTransform: "none", fontWeight: 600, background: "linear-gradient(135deg, #f49937 0%, #f0932b 100%)", color: "#fff", "&:hover": { background: "linear-gradient(135deg, #d67a1a, #d67a1a)" } }}>Appeal</Button> </Paper>;
+            }
+            return null;
+          })()}
+          {userAttendanceRecord  && (
             <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: "1px solid #e8edf3", mb: 3 }}>
               <Typography variant="body1" sx={{ fontWeight: 600, mb: 2, color: "#1a1a2e" }}>Your Attendance Status</Typography>
               <Box sx={{ display: "flex", alignItems: "start", gap: 2 }}>
@@ -1042,7 +1080,7 @@ export default function MeetingDetailsPageContent() {
         onClose={() => setAppealModalOpen(false)}
         meeting={meeting}
         onSubmit={handleAppealSubmit}
-        existingAppeal={appeals.find(a => a.user_id === currentUser.id)}
+        existingAppeal={appeals.find(a => (a.user_id === currentUser.id || a.user_id?.id === currentUser.id))}
       />
 
       {/* ATTENDANCE CONFIRM Modal */}

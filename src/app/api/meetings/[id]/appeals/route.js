@@ -37,8 +37,11 @@ export async function GET(request, { params }) {
   const isAdmin = userProfile?.roles?.name === 'System Administrator' || userProfile?.roles?.name === 'Admin';
   const isOrganizer = meeting.organizer_id === user.id;
 
+  // Allow organizers, admins, or the user viewing their own appeals
+  // For non-admin/organizer users, they can only see appeals they created
   if (!isAdmin && !isOrganizer) {
-    return forbiddenResponse('Only organizer or admin can view appeals');
+    // User can only view appeals they submitted
+    // Just continue and filter by user_id below
   }
 
   let query = supabaseAdmin
@@ -52,8 +55,14 @@ export async function GET(request, { params }) {
       { count: 'exact' }
     )
     .eq('meeting_id', id)
-    .order('created_at', { ascending: false })
-    .range(offset, offset + limit - 1);
+    .order('created_at', { ascending: false });
+
+  // If user is not admin/organizer, only show their own appeals
+  if (!isAdmin && !isOrganizer) {
+    query = query.eq('user_id', user.id);
+  }
+
+  query = query.range(offset, offset + limit - 1);
 
   if (status && ['pending', 'approved', 'rejected'].includes(status)) {
     query = query.eq('status', status);
