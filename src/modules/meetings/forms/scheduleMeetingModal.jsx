@@ -149,8 +149,29 @@ export default function ScheduleMeetingModal({
       setSubmitting(false);
     }
   };
+  const getDefaultTimes = () => {
+    const now = new Date();
 
+    const start = now.toTimeString().slice(0, 5);
 
+    const endDate = new Date(now.getTime() + 60 * 60 * 1000);
+    const end = endDate.toTimeString().slice(0, 5);
+
+    return {
+      startTime: start,
+      endTime: end,
+      duration: 60,
+    };
+  };
+  const getTodayDate = () => {
+    const today = new Date();
+
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const day = String(today.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
+  };
   return (
     <Dialog
       open={open}
@@ -196,10 +217,9 @@ export default function ScheduleMeetingModal({
 
       <Formik
         initialValues={{
+          ...getDefaultTimes(),
           title: "",
-          date: "",
-          startTime: "",
-          endTime: "",
+          date: getTodayDate(),
           duration: "",
           location: "",
           type: "management",
@@ -234,6 +254,7 @@ export default function ScheduleMeetingModal({
               setValues({ ...values, [name]: value, duration });
             }
           };
+          
 
           return (
             <Form noValidate>
