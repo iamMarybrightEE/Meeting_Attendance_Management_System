@@ -32,6 +32,7 @@ import {
 import { Menu as MuiMenu, MenuItem as MuiMenuItem } from "@mui/material";
 import { FormControl, InputLabel, Select } from "@mui/material";
 import { useAuth } from "../../../context/AuthContext";
+import Link from "next/link";
 
 const ROWS_PER_PAGE = 10;
 
@@ -96,6 +97,7 @@ export default function AttendancePageContent() {
           if (staffAttendance) {
             records.push({
               id: `${meeting.id}-${currentUser.id}`,
+              meeting_id: meeting.id,
               meeting_name: meeting.title,
               date: meeting.date,
               start_time: meeting.start_time,
@@ -115,6 +117,7 @@ export default function AttendancePageContent() {
             if (attendee.profiles?.department === currentUser.department) {
               records.push({
                 id: `${meeting.id}-${attendee.user_id}`,
+                meeting_id: meeting.id,
                 meeting_name: meeting.title,
                 date: meeting.date,
                 start_time: meeting.start_time,
@@ -134,6 +137,7 @@ export default function AttendancePageContent() {
           for (const attendee of attendees) {
             records.push({
               id: `${meeting.id}-${attendee.user_id}`,
+              meeting_id: meeting.id,
               meeting_name: meeting.title,
               date: meeting.date,
               start_time: meeting.start_time,
@@ -513,7 +517,12 @@ export default function AttendancePageContent() {
                   const colors = getStatusColor(record.status);
                   return (
                     <TableRow key={record.id} hover sx={{ "&:hover": { bgcolor: "#f8fafc" } }}>
-                      <TableCell sx={{ fontWeight: 600 }}>{record.meeting_name}</TableCell>
+                      <TableCell sx={{ fontWeight: 600, "&:hover": { textDecoration: "underline",
+                            color: "#004497",} }}>
+                        <Link href={`/meetings/${record.meeting_id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                          {record.meeting_name}
+                        </Link>
+                      </TableCell>
                       <TableCell>{record.date}</TableCell>
                       <TableCell>{record.start_time}</TableCell>
                       <TableCell>{record.end_time}</TableCell>

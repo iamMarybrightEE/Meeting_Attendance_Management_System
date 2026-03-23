@@ -91,6 +91,7 @@ export default function UserProfilePage() {
   // Check if current user can view this profile
   const canView = canViewProfile(currentUser, params.id, user?.department);
   const canEdit = canEditProfile(currentUser, params.id);
+  const canViewButton = user && (isSystemAdmin(currentUser));
 
   // Fetch real login history from audit logs
   useEffect(() => {
@@ -165,14 +166,14 @@ export default function UserProfilePage() {
   return (
     <Box sx={{ animation: "fadeIn 0.4s ease", "@keyframes fadeIn": { from: { opacity: 0 }, to: { opacity: 1 } } }}>
       {/* Back Button */}
-      <Button
+      {canViewButton && <Button
         startIcon={<ArrowBack />}
         onClick={() => router.push("/user-management")}
         sx={{ mb: 2.5, textTransform: "none", color: "#6b7280", "&:hover": { color: "#004497" } }}
       >
         Back to User Management
       </Button>
-
+}
       <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "300px 1fr" }, gap: 2.5 }}>
         {/* Profile Sidebar */}
         <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -297,12 +298,41 @@ export default function UserProfilePage() {
                 "& .MuiTabs-indicator": { bgcolor: "#004497" },
               }}
             >
-              <Tab label="Login History" />
               <Tab label="Account Details" />
+              <Tab label="Login History" />
             </Tabs>
 
-            {/* Login History */}
+            
+            {/* Account Details */}
             {tab === 0 && (
+              <Box sx={{ p: 2.5 }}>
+                <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
+                  {[
+                    { label: "Full Name", value: `${user.firstName} ${user.middleName || ""} ${user.lastName}`.trim() },
+                    { label: "Username", value: user.username },
+                    { label: "Email", value: user.email },
+                    { label: "Employee ID", value: user.employeeId },
+                    { label: "Contact", value: user.contact },
+                    { label: "Department", value: user.department },
+                    { label: "Role", value: user.role },
+                    { label: "Account Status", value: user.status },
+                    { label: "Account Created", value: user.createdAt ? new Date(user.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" }) : "—" },
+                    { label: "Last Login", value: user.lastLogin ? new Date(user.lastLogin).toLocaleString("en-GB") : "Never" },
+                  ].map((item) => (
+                    <Box key={item.label} sx={{ p: 1.5, borderRadius: 2, bgcolor: "#f8fafc", border: "1px solid #e8edf3" }}>
+                      <Typography variant="caption" sx={{ color: "#9ca3af", fontWeight: 600, textTransform: "uppercase", fontSize: "0.65rem", letterSpacing: "0.05em" }}>
+                        {item.label}
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: "#374151", mt: 0.3 }}>
+                        {item.value || "—"}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Box>
+              </Box>
+            )}
+            {/* Login History */}
+            {tab === 1 && (
               <Box sx={{ p: 2.5 }}>
                 {loginHistoryLoading ? (
                   <Box sx={{ display: "flex", justifyContent: "center", py: 5 }}>
@@ -356,34 +386,7 @@ export default function UserProfilePage() {
               </Box>
             )}
 
-            {/* Account Details */}
-            {tab === 1 && (
-              <Box sx={{ p: 2.5 }}>
-                <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
-                  {[
-                    { label: "Full Name", value: `${user.firstName} ${user.middleName || ""} ${user.lastName}`.trim() },
-                    { label: "Username", value: user.username },
-                    { label: "Email", value: user.email },
-                    { label: "Employee ID", value: user.employeeId },
-                    { label: "Contact", value: user.contact },
-                    { label: "Department", value: user.department },
-                    { label: "Role", value: user.role },
-                    { label: "Account Status", value: user.status },
-                    { label: "Account Created", value: user.createdAt ? new Date(user.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" }) : "—" },
-                    { label: "Last Login", value: user.lastLogin ? new Date(user.lastLogin).toLocaleString("en-GB") : "Never" },
-                  ].map((item) => (
-                    <Box key={item.label} sx={{ p: 1.5, borderRadius: 2, bgcolor: "#f8fafc", border: "1px solid #e8edf3" }}>
-                      <Typography variant="caption" sx={{ color: "#9ca3af", fontWeight: 600, textTransform: "uppercase", fontSize: "0.65rem", letterSpacing: "0.05em" }}>
-                        {item.label}
-                      </Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 600, color: "#374151", mt: 0.3 }}>
-                        {item.value || "—"}
-                      </Typography>
-                    </Box>
-                  ))}
-                </Box>
-              </Box>
-            )}
+            
           </Paper>
         </Box>
       </Box>
