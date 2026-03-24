@@ -17,6 +17,7 @@ import AppealReviewModal from "../forms/appealReviewModal";
 import AppealModal from "../forms/appealModal";
 // import AttendanceConfirmModal from "../forms/attendanceConfirmModal";
 import ExternalVisitorModal from "../forms/externalVisitorModal";
+import MeetingChatWidget from "../components/meetingChatWidget";
 
 const ROWS_PER_PAGE = 8;
 
@@ -565,6 +566,7 @@ export default function MeetingDetailsPageContent() {
                     {meeting.description || "No description"}
                 </Typography>
             </Paper>
+            <MeetingChatWidget meetingId={meetingId} tenantId={currentUser?.tenant_id || "default"} />
             {/* appeal status */}
             
               {(() => {
