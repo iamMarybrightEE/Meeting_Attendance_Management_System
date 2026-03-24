@@ -33,3 +33,40 @@ WITH CHECK (bucket_id = 'appeal_documents' AND auth.role() = 'authenticated');
 CREATE POLICY "User Delete"
 ON storage.objects FOR DELETE
 USING (bucket_id = 'appeal_documents' AND auth.uid() = owner);
+
+-- Create meetings storage bucket for meeting recordings and documents
+INSERT INTO storage.buckets (id, name, owner, public, file_size_limit, allowed_mime_types, created_at, updated_at)
+VALUES (
+  'meetings',
+  'meetings',
+  NULL,
+  true,
+  524288000, -- 500MB for video files
+  ARRAY[
+    'video/mp4',
+    'video/webm',
+    'audio/mpeg',
+    'audio/wav',
+    'application/pdf',
+    'text/plain',
+    'application/json'
+  ],
+  now(),
+  now()
+)
+ON CONFLICT (id) DO NOTHING;
+
+-- Enable public access to meetings bucket
+CREATE POLICY "Public Access"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'meetings');
+
+-- Allow authenticated users to upload to meetings bucket
+CREATE POLICY "Authenticated Upload"
+ON storage.objects FOR INSERT
+WITH CHECK (bucket_id = 'meetings' AND auth.role() = 'authenticated');
+
+-- Allow users to delete their own uploads from meetings bucket
+CREATE POLICY "User Delete"
+ON storage.objects FOR DELETE
+USING (bucket_id = 'meetings' AND auth.uid() = owner);
