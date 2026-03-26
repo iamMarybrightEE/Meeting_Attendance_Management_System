@@ -5,9 +5,10 @@ import { useRouter, useParams } from "next/navigation";
 import {
   Box, Typography, Button, TextField, InputAdornment, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Paper, Chip, Tooltip, Tabs, Tab, Grid, Avatar, AvatarGroup, Breadcrumbs, Link as MuiLink, Pagination, MenuItem, Snackbar, Alert, Divider, CircularProgress, Menu,
+  Drawer, IconButton,
 } from "@mui/material";
 import {
-  ArrowBack, Search, Edit, Delete, Event, AccessTime, LocationOn, Person, Description, Print, GetApp, CheckCircle, Warning, Close, Group, ExpandMore, TableChart, PictureAsPdf,
+  ArrowBack, Search, Edit, Delete, Event, AccessTime, LocationOn, Person, Description, Print, GetApp, CheckCircle, Warning, Close, Group, ExpandMore, TableChart, PictureAsPdf, MenuBook,
 } from "@mui/icons-material";
 import { useAuth } from "../../../context/AuthContext";
 import { canAccessAttendanceConfirmation, isSystemAdmin, isAdmin, isChairperson } from "../../../lib/permissions";
@@ -18,6 +19,7 @@ import AppealModal from "../forms/appealModal";
 // import AttendanceConfirmModal from "../forms/attendanceConfirmModal";
 import ExternalVisitorModal from "../forms/externalVisitorModal";
 import MeetingChatWidget from "../components/meetingChatWidget";
+import MeetingMinutesUpload from "../components/meetingMinutesUpload";
 
 const ROWS_PER_PAGE = 8;
 
@@ -68,6 +70,8 @@ export default function MeetingDetailsPageContent() {
   const [selectedAttendance, setSelectedAttendance] = useState(null);
   const [exportAnchor, setExportAnchor] = useState(null);
   const [externalExportAnchor, setExternalExportAnchor] = useState(null);
+  const [minutesUploadVersion, setMinutesUploadVersion] = useState(0);
+  const [assistantDrawerOpen, setAssistantDrawerOpen] = useState(false);
 
   const meetingId = params?.id;
 
@@ -566,7 +570,130 @@ export default function MeetingDetailsPageContent() {
                     {meeting.description || "No description"}
                 </Typography>
             </Paper>
-            <MeetingChatWidget meetingId={meetingId} tenantId={currentUser?.tenant_id || "default"} />
+            {meetingId && (
+              <>
+                {!assistantDrawerOpen && (
+                  <Tooltip title="Open meeting assistant (minutes + Ollama chat)" placement="left">
+                    <Paper
+                      component="button"
+                      type="button"
+                      elevation={8}
+                      onClick={() => setAssistantDrawerOpen(true)}
+                      sx={{
+                        position: "fixed",
+                        right: 0,
+                        top: "40%",
+                        zIndex: (t) => t.zIndex.drawer + 1,
+                        borderRadius: "14px 0 0 14px",
+                        py: 2.25,
+                        px: 0.85,
+                        minWidth: 48,
+                        border: "1px solid rgba(0,68,151,0.35)",
+                        borderRight: "none",
+                        bgcolor: "#004497",
+                        color: "#fff",
+                        cursor: "pointer",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        gap: 1,
+                        boxShadow: "-6px 4px 20px rgba(0, 68, 151, 0.28)",
+                        transition: "background-color 0.2s, transform 0.15s",
+                        "&:hover": {
+                          bgcolor: "#003875",
+                          transform: "translateX(-2px)",
+                        },
+                        "&:focus-visible": {
+                          outline: "2px solid #90caf9",
+                          outlineOffset: 2,
+                        },
+                      }}
+                    >
+                      <MenuBook sx={{ fontSize: 24, opacity: 0.95 }} />
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          fontWeight: 800,
+                          letterSpacing: "0.08em",
+                          writingMode: "vertical-rl",
+                          transform: "rotate(180deg)",
+                          textTransform: "uppercase",
+                          fontSize: "0.68rem",
+                          lineHeight: 1.2,
+                          userSelect: "none",
+                        }}
+                      >
+                        Meeting AI
+                      </Typography>
+                    </Paper>
+                  </Tooltip>
+                )}
+                <Drawer
+                  anchor="right"
+                  open={assistantDrawerOpen}
+                  onClose={() => setAssistantDrawerOpen(false)}
+                  PaperProps={{
+                    id: "meeting-assistant-drawer",
+                    sx: {
+                      width: { xs: "100%", sm: 472 },
+                      maxWidth: "100vw",
+                      display: "flex",
+                      flexDirection: "column",
+                      bgcolor: "#f6f8fc",
+                    },
+                  }}
+                >
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      px: 2,
+                      py: 1.5,
+                      borderBottom: "1px solid #e8edf3",
+                      bgcolor: "#fff",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <MenuBook sx={{ color: "#004497", fontSize: 26 }} />
+                      <Box>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 800, color: "#1a1a2e", lineHeight: 1.2 }}>
+                          Meeting assistant
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Minutes · Ollama RAG
+                        </Typography>
+                      </Box>
+                    </Box>
+                    <IconButton
+                      onClick={() => setAssistantDrawerOpen(false)}
+                      aria-label="Close meeting assistant"
+                      size="small"
+                      sx={{ color: "#6b7280" }}
+                    >
+                      <Close />
+                    </IconButton>
+                  </Box>
+                  <Box sx={{ flex: 1, overflow: "auto", px: 2, py: 2 }}>
+                    <MeetingMinutesUpload
+                      meetingId={meetingId}
+                      embedded
+                      onDone={() => {
+                        setMinutesUploadVersion((v) => v + 1);
+                        setSnackbar({ open: true, message: "Meeting minutes uploaded and indexed.", severity: "success" });
+                      }}
+                    />
+                    <MeetingChatWidget
+                      meetingId={meetingId}
+                      tenantId={currentUser?.tenant_id || "default"}
+                      uploadVersion={minutesUploadVersion}
+                      embedded
+                    />
+                  </Box>
+                </Drawer>
+              </>
+            )}
             {/* appeal status */}
             
               {(() => {
