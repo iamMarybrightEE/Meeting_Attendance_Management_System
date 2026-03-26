@@ -44,3 +44,14 @@ next-env.d.ts
 /meeting_agent_service/__pycache__/
 /meeting_agent_service/storage/
 /meeting_agent_service/*.db
+.venv/
+__pycache__/
+storage/
+*.db
+*.log
+*.log.*
+*.log.*.*
+*.log.*.*.*
+*.log.*.*.*.*
+*.log.*.*.*.*.*
+*.log.*.*.*.*.*.*

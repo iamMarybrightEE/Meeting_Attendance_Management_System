@@ -61,6 +61,26 @@ def chroma_dir_for_meeting(meeting_id: str) -> Path:
     return ensure_storage_dir() / "chroma" / meeting_id
 
 
+def latest_chroma_dir_for_meeting(meeting_id: str) -> Path:
+    """
+    Resolve the directory used for retrieval.
+    Supports both legacy single-dir layout and new per-run subdirectories.
+    """
+    base = chroma_dir_for_meeting(meeting_id)
+    if not base.exists():
+        return base
+
+    direct_db = base / "chroma.sqlite3"
+    if direct_db.exists():
+        return base
+
+    run_dirs = [p for p in base.iterdir() if p.is_dir()]
+    if not run_dirs:
+        return base
+    run_dirs.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    return run_dirs[0]
+
+
 def _chmod_u_rw(path: Path) -> None:
     try:
         mode = path.stat().st_mode
@@ -157,8 +177,9 @@ def run_indexing_job(db: Session, meeting_id: str) -> int:
     db.execute(delete(TranscriptChunk).where(TranscriptChunk.meeting_id == meeting_id))
     db.commit()
 
-    clear_meeting_chroma(meeting_id)
-    _assert_dir_writable(chroma_dir_for_meeting(meeting_id))
+    base_chroma_path = chroma_dir_for_meeting(meeting_id).resolve()
+    base_chroma_path.mkdir(parents=True, exist_ok=True)
+    _assert_dir_writable(base_chroma_path)
 
     chunk_texts = split_into_chunks(transcript.full_text, settings.chunk_size, settings.chunk_overlap)
     for idx, chunk in enumerate(chunk_texts):
@@ -187,7 +208,8 @@ def run_indexing_job(db: Session, meeting_id: str) -> int:
         for c in rows
     ]
 
-    chroma_path = chroma_dir_for_meeting(meeting_id).resolve()
+    run_chroma_path = base_chroma_path / f"run_{uuid.uuid4().hex[:8]}"
+    run_chroma_path.mkdir(parents=True, exist_ok=True)
 
     embedding = OllamaEmbeddings(
         model=settings.ollama_embed_model,
@@ -198,7 +220,7 @@ def run_indexing_job(db: Session, meeting_id: str) -> int:
         Chroma.from_documents(
             documents=documents,
             embedding=embedding,
-            persist_directory=str(chroma_path),
+            persist_directory=str(run_chroma_path),
         )
     except Exception:
         meeting.index_status = IndexStatus.failed
@@ -259,7 +281,7 @@ def answer_with_rag(db: Session, session_id: str, message: str, top_k: int) -> t
         db.commit()
         return err, []
 
-    chroma_path = chroma_dir_for_meeting(session.meeting_id).resolve()
+    chroma_path = latest_chroma_dir_for_meeting(session.meeting_id).resolve()
     llm = ChatOllama(
         model=settings.ollama_chat_model,
         base_url=settings.ollama_base_url,
